@@ -1,0 +1,44 @@
+{
+  "detector": {
+    "model_path": "yolo11m.pt",
+    "confidence_threshold": 0.30,
+    "image_size": 1280
+  },
+  "tracker": {
+    "track_activation_threshold": 0.25,
+    "lost_track_buffer": 30,
+    "minimum_matching_threshold": 0.80,
+    "frame_rate": 30
+  },
+  "reid": {
+    "enabled": true,
+    "model_name": "osnet_x1_0",
+    "update_every": 5,
+    "similarity_threshold": 0.60,
+    "embedding_alpha": 0.10
+  },
+  "identity": {
+    "lost_timeout_seconds": 8.0,
+    "forget_timeout_seconds": 300.0
+  },
+  "overlay": {
+    "debug": false
+  },
+  "logging": {
+    "enabled": true,
+    "frame_log_path": "logs/frames.jsonl"
+  },
+  "api": {
+    "host": "0.0.0.0",
+    "port": 8000
+  },
+  "pipeline": {
+    "source": "0",
+    "backend": "auto",
+    "device": "auto",
+    "render_overlay": true,
+    "stream_overlay": true,
+    "run_pipeline": true,
+    "mock_people": 24
+  }
+}

@@ -1,0 +1,13 @@
+# Heavy ML stack for the GPU tracking worker.
+# Install on a machine/container with CUDA available.
+#   pip install -r requirements.txt -r requirements-ml.txt
+numpy>=1.24
+opencv-python-headless>=4.9
+ultralytics>=8.3        # YOLO11m
+supervision>=0.20       # ByteTrack
+torch>=2.2
+torchvision>=0.17
+torchreid>=0.2.5        # OSNet x1.0
+
+# Deployment
+modal>=0.64

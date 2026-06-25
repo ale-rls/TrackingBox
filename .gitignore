@@ -1,0 +1,36 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.venv/
+venv/
+.env
+
+# Tooling
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Model weights (downloaded at runtime)
+*.pt
+*.pth
+*.onnx
+weights/
+
+# Runtime artifacts
+logs/
+outputs/
+benchmarks/*.json
+*.mp4
+*.avi
+!tests/fixtures/*.mp4
+
+# OS / editors
+.DS_Store
+.idea/
+.vscode/

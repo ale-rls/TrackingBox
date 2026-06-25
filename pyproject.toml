@@ -1,0 +1,49 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "audience-tracker"
+version = "1.0.0"
+description = "Real-time anonymous audience tracking for interactive theater (YOLO11 + ByteTrack + OSNet ReID)"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "ale-rls" }]
+keywords = ["tracking", "reid", "bytetrack", "yolo", "theater", "computer-vision"]
+
+# Core runtime deps for the API/serving layer. The heavy ML stack lives in the
+# optional `ml` extra so the core logic and APIs stay importable without a GPU.
+dependencies = [
+    "fastapi>=0.110",
+    "uvicorn[standard]>=0.29",
+    "websockets>=12",
+]
+
+[project.optional-dependencies]
+# Real detection / tracking / ReID stack. Install on the GPU worker.
+ml = [
+    "numpy>=1.24",
+    "opencv-python-headless>=4.9",
+    "ultralytics>=8.3",      # provides YOLO11
+    "supervision>=0.20",     # provides ByteTrack
+    "torch>=2.2",
+    "torchvision>=0.17",
+    "torchreid>=0.2.5",      # provides OSNet x1.0
+]
+deploy = ["modal>=0.64"]
+dev = ["pytest>=8", "numpy>=1.24", "httpx>=0.27", "ruff>=0.4"]
+
+[project.scripts]
+audience-tracker = "audience_tracker.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"

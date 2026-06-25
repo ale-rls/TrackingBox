@@ -1,0 +1,4 @@
+# Core serving layer (API + state). Importable without a GPU.
+fastapi>=0.110
+uvicorn[standard]>=0.29
+websockets>=12
