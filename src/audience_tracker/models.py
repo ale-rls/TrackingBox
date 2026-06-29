@@ -9,11 +9,31 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import Optional, Sequence
+from typing import Any, Optional, Sequence
 
 # (x1, y1, x2, y2) in pixel coordinates.
 BBox = tuple[float, float, float, float]
 Embedding = list[float]
+
+
+@dataclass(slots=True)
+class Frame:
+    """A single decoded frame travelling through the ingestion subsystem.
+
+    The Tracking Pipeline consumes ``Frame`` objects from a ``FrameSource`` and
+    must not care whether they came from a USB camera, an RTSP stream, a video
+    file or the synthetic simulator (Video Ingestion spec — FrameSource).
+
+    ``image`` is a decoded BGR ``numpy.ndarray`` (typed ``Any`` to keep this
+    module stdlib-only). ``frame_id`` is strictly increasing for a given source;
+    ``timestamp`` is epoch seconds captured at acquisition time.
+    """
+
+    image: Any
+    timestamp: float
+    frame_id: int
+    width: int = 0
+    height: int = 0
 
 
 def bbox_center(bbox: BBox) -> tuple[float, float]:

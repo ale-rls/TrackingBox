@@ -81,8 +81,50 @@ class ApiConfig:
 
 
 @dataclass
+class CameraConfig:
+    """Physical camera settings for the local Capture Agent (Video Ingestion spec)."""
+    device_index: int = 0      # OpenCV device index; agent also accepts file/RTSP via source
+    width: int = 1920
+    height: int = 1080
+    fps: int = 30
+
+
+@dataclass
+class CaptureAgentConfig:
+    """Local Capture Agent: reads the camera and streams JPEG frames to Modal."""
+    # Modal ingestion WebSocket URL, e.g. wss://<app>.modal.run/ingest
+    server_url: str = "ws://localhost:8000/ingest"
+    # Bearer token presented on connect; must match the ingestion service token.
+    token: str = ""
+    jpeg_quality: int = 85         # 1-100; spec default 85%
+    # Optional downscale before encoding (0 = send at capture resolution). Kept as
+    # int (not None) so AT_* env overrides coerce to int rather than passing a str.
+    resize_width: int = 0
+    resize_height: int = 0
+    # Local status endpoint (GET /status).
+    status_host: str = "127.0.0.1"
+    status_port: int = 9000
+    # Reconnect backoff bounds (seconds), exponential between them.
+    reconnect_initial_s: float = 0.5
+    reconnect_max_s: float = 30.0
+
+
+@dataclass
+class IngestConfig:
+    """Modal Ingestion Service: receives the Capture Agent's frame stream."""
+    # Bearer token required from clients. Empty string disables auth (dev only).
+    token: str = ""
+    # Bounded frame queue depth (spec recommends 2-3); oldest dropped when full.
+    queue_size: int = 3
+    # How long the pipeline waits for a frame before looping (keeps it responsive
+    # to shutdown and lets tracking idle while the agent is disconnected).
+    frame_timeout_s: float = 1.0
+
+
+@dataclass
 class PipelineConfig:
-    # Camera index ("0"), file path, or RTSP/HTTP URL.
+    # Frame source: camera index ("0"), file path, RTSP/HTTP URL, or the literal
+    # "ingest" to consume the Modal ingestion queue fed by the Capture Agent.
     source: str = "0"
     # "auto": use the real ML stack if importable, otherwise fall back to mocks.
     # "real": force the ML stack. "mock": force the synthetic stack (no GPU).
@@ -111,6 +153,9 @@ class Config:
     overlay: OverlayConfig = field(default_factory=OverlayConfig)
     logging: LoggingConfig = field(default_factory=LoggingConfig)
     api: ApiConfig = field(default_factory=ApiConfig)
+    camera: CameraConfig = field(default_factory=CameraConfig)
+    capture_agent: CaptureAgentConfig = field(default_factory=CaptureAgentConfig)
+    ingest: IngestConfig = field(default_factory=IngestConfig)
     pipeline: PipelineConfig = field(default_factory=PipelineConfig)
 
     # ------------------------------------------------------------------ #

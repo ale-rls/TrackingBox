@@ -113,39 +113,48 @@ class TrackingPipeline:
     # ------------------------------------------------------------------ #
     # Run loop
     # ------------------------------------------------------------------ #
-    def run(self, camera: Any, writer: Any = None, max_frames: Optional[int] = None) -> int:
-        """Process frames from a camera-like object until it ends or stop()."""
-        frame_index = 0
+    def run(self, source: Any, writer: Any = None, max_frames: Optional[int] = None) -> int:
+        """Process frames from a :class:`FrameSource` until it ends or stop().
+
+        The source is consumed via ``next_frame`` so the pipeline is agnostic to
+        the transport (camera / file / RTSP / simulator / ingestion queue). A
+        ``None`` return is transient — for a live source (the ingestion queue
+        while the Capture Agent is disconnected) the loop keeps waiting; it only
+        ends when the source reports ``exhausted`` (file/simulator finished)."""
+        processed = 0
+        timeout = self.cfg.ingest.frame_timeout_s
         min_dt = 1.0 / self.cfg.pipeline.max_fps if self.cfg.pipeline.max_fps else 0.0
         try:
             while not self._stop.is_set():
-                if max_frames is not None and frame_index >= max_frames:
+                if max_frames is not None and processed >= max_frames:
                     break
                 loop_t0 = time.perf_counter()
-                ok, frame = camera.read()
-                if not ok or frame is None:
-                    break
-                annotated = self.process_frame(frame, frame_index)
+                frame = source.next_frame(timeout=timeout)
+                if frame is None:
+                    if getattr(source, "exhausted", False):
+                        break
+                    continue  # live source idle — keep tracking state, wait
+                annotated = self.process_frame(frame.image, frame.frame_id, frame.timestamp)
                 if writer is not None:
                     writer.write(annotated)
-                frame_index += 1
+                processed += 1
                 if min_dt:
                     elapsed = time.perf_counter() - loop_t0
                     if elapsed < min_dt:
                         time.sleep(min_dt - elapsed)
         finally:
-            camera.release()
+            source.release()
             if writer is not None:
                 writer.release()
             self.frame_logger.close()
-        return frame_index
+        return processed
 
-    def start_background(self, camera: Any) -> None:
+    def start_background(self, source: Any) -> None:
         if self._thread and self._thread.is_alive():
             return
         self._stop.clear()
         self._thread = threading.Thread(
-            target=self.run, args=(camera,), name="tracking-pipeline", daemon=True
+            target=self.run, args=(source,), name="tracking-pipeline", daemon=True
         )
         self._thread.start()
         log.info("Tracking pipeline started in background")

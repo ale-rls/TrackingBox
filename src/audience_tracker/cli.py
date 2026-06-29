@@ -1,10 +1,11 @@
 """Command-line entry point.
 
 Subcommands:
-  serve       Run the REST/WebSocket API (and, by default, the tracking pipeline).
-  run         Process a video source headlessly, writing an annotated output.
-  benchmark   Run the benchmark scenarios and emit a JSON report.
-  demo        Quick mock-backend run (no GPU/camera) with stats to stdout.
+  serve          Run the REST/WebSocket API (and, by default, the tracking pipeline).
+  run            Process a video source headlessly, writing an annotated output.
+  benchmark      Run the benchmark scenarios and emit a JSON report.
+  capture-agent  Run the venue Capture Agent: stream camera frames to Modal /ingest.
+  demo           Quick mock-backend run (no GPU/camera) with stats to stdout.
 """
 
 from __future__ import annotations
@@ -75,6 +76,21 @@ def cmd_benchmark(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_capture_agent(args: argparse.Namespace) -> int:
+    from .ingestion.capture_agent import run_agent
+
+    cfg = _load_cfg(args)
+    if args.server_url:
+        cfg.capture_agent.server_url = args.server_url
+    if args.token:
+        cfg.capture_agent.token = args.token
+    if args.jpeg_quality:
+        cfg.capture_agent.jpeg_quality = args.jpeg_quality
+    # --source overrides the camera device (also accepts a file/RTSP URL).
+    run_agent(cfg, source=args.source)
+    return 0
+
+
 def cmd_demo(args: argparse.Namespace) -> int:
     from .factory import build_pipeline, open_source
 
@@ -134,6 +150,15 @@ def main(argv: list[str] | None = None) -> int:
     p_bench.add_argument("--frames", type=int, default=300, help="Frames per scenario")
     p_bench.add_argument("--output", default="benchmarks/report.json")
     p_bench.set_defaults(func=cmd_benchmark)
+
+    p_agent = sub.add_parser(
+        "capture-agent", help="Run the local Capture Agent (venue camera -> Modal /ingest)"
+    )
+    _add_common(p_agent)
+    p_agent.add_argument("--server-url", help="Modal ingest WebSocket URL (wss://.../ingest)")
+    p_agent.add_argument("--token", help="Bearer token for the ingestion service")
+    p_agent.add_argument("--jpeg-quality", type=int, help="JPEG quality 1-100 (default 85)")
+    p_agent.set_defaults(func=cmd_capture_agent)
 
     p_demo = sub.add_parser("demo", help="Quick mock run, stats to stdout")
     _add_common(p_demo)
