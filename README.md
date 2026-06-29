@@ -58,11 +58,22 @@ pip install -e ".[reid]"
 pip install -e ".[dev]"
 ```
 
-**Running locally on Windows with TouchDesigner** (all-local, no Modal): see
-[`docs/WINDOWS_TOUCHDESIGNER.md`](docs/WINDOWS_TOUCHDESIGNER.md). TouchDesigner is
-the camera/renderer and `audience-tracker serve` is the local YOLO service, bridged
-over WebSocket — same pattern as `torinmb/yolo-touchdesigner`. ReID is optional
-there (`--no-reid`): persistent GIDs while tracked, no cross-occlusion recovery.
+**Running locally on Windows with TouchDesigner** (all-local, no Modal) — one command:
+
+```bat
+scripts\install_windows.bat
+```
+
+It finds Python, detects your GPU/CUDA version and installs the matching PyTorch
+wheel (CPU fallback with a warning), installs the detection stack, and verifies
+with `audience-tracker doctor`. Full runbook + TouchDesigner wiring + troubleshooting:
+[`docs/WINDOWS_TOUCHDESIGNER.md`](docs/WINDOWS_TOUCHDESIGNER.md). TouchDesigner is the
+camera/renderer and `audience-tracker serve` is the local YOLO service, bridged over
+WebSocket — same pattern as `torinmb/yolo-touchdesigner`. ReID is optional there
+(`--no-reid`): persistent GIDs while tracked, no cross-occlusion recovery.
+
+Check any environment (Windows/Mac/Linux) with `audience-tracker doctor` — it reports
+which dependencies and GPU are present and whether `serve` / `detect` / `reid` are ready.
 
 Python ≥ 3.10. The core/identity logic is pure stdlib; frame processing needs
 numpy (+ OpenCV for the overlay video stream).

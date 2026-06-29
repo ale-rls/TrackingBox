@@ -33,6 +33,39 @@ nvidia-smi
 
 ## 2. Install the service
 
+### Quick install (one command)
+
+From the repo root in a terminal (or just double-click `scripts\install_windows.bat`):
+
+```bat
+scripts\install_windows.bat
+```
+
+This script handles the fiddly parts for you:
+
+* finds a usable Python (3.10–3.12) or tells you exactly what to install;
+* creates the `.venv` (re-running is safe — it reuses it);
+* runs `nvidia-smi`, reads your CUDA version, and installs the **matching** CUDA
+  PyTorch wheel — or falls back to CPU with a clear warning if there's no GPU;
+* installs the detection/tracking stack (`.[detect]`);
+* verifies the result with `audience-tracker doctor` and prints next steps.
+
+Options: `scripts\install_windows.bat -Reid` (also install ReID),
+`-Cpu` (force CPU build), `-CudaTag cu121` (override the CUDA wheel).
+
+When it finishes, sanity-check anytime with:
+
+```bat
+.venv\Scripts\audience-tracker doctor
+```
+
+which prints which dependencies and which GPU are present, and whether each
+capability (`serve` / `detect` / `reid`) is READY.
+
+### Manual install (alternative)
+
+If you'd rather do it by hand:
+
 ```bat
 py -3.11 -m venv .venv
 .venv\Scripts\activate
@@ -44,14 +77,9 @@ pip install torch torchvision --index-url https://download.pytorch.org/whl/cu124
 
 :: Detection + tracking only (no ReID). YOLO11 weights auto-download on first run.
 pip install -e ".[detect]"
-```
 
-Confirm the GPU is visible to PyTorch (this is the one thing that silently bites
-on Windows — a CPU-only torch wheel will "work" but be far too slow):
-
-```bat
-python -c "import torch; print(torch.cuda.is_available(), torch.cuda.get_device_name(0))"
-:: -> True NVIDIA GeForce RTX ...
+:: Confirm the GPU is visible to PyTorch (a CPU-only wheel "works" but is far too slow):
+audience-tracker doctor --require detect --require-cuda
 ```
 
 ## 3. Pick an integration mode
@@ -62,7 +90,10 @@ The service opens the USB camera directly and produces an annotated MJPEG stream
 TouchDesigner just *consumes* results. Nothing to encode in TD.
 
 ```bat
-audience-tracker serve --backend real --device cuda --source 0 --no-reid --port 8000
+scripts\run_windows.bat
+:: equivalent to:
+:: .venv\Scripts\audience-tracker serve --backend real --device cuda --source 0 --no-reid --port 8000
+:: pass-through args work too, e.g.:  scripts\run_windows.bat --source 1 --port 9000
 ```
 
 In TouchDesigner:
@@ -126,3 +157,27 @@ pip install -e ".[reid]"
 
 Then drop `--no-reid` and run with `--backend real --device cuda`. ReID enables
 GID recovery after a person is briefly occluded or leaves and re-enters frame.
+
+## 6. Troubleshooting
+
+Run `audience-tracker doctor` first — it pinpoints most of these.
+
+| Symptom | Likely cause | Fix |
+|---|---|---|
+| `doctor` says *"PyTorch installed but CUDA NOT available"* | a CPU-only torch wheel got installed | reinstall with the CUDA index, or re-run `scripts\install_windows.bat` (auto-detects). |
+| Very low FPS, GPU idle in Task Manager | running on CPU torch | same as above — confirm with `doctor`; expect `[OK] CUDA GPU: ...`. |
+| Installer: *"No suitable Python found"* | Python missing or 3.13+ only | install Python 3.11 from python.org (tick *Add to PATH*); torch has no 3.13+ wheels yet. |
+| `Could not open video source: '0'` | wrong camera index or camera in use | try `--source 1`, `2`…; close other apps using the webcam. |
+| TD **Video Stream In TOP** stays black | service not running / wrong URL | check `curl http://localhost:8000/health`; URL must be `http://localhost:8000/video`. |
+| TD **WebSocket DAT** won't connect | wrong address/port or firewall | Network Address `localhost`, Port `8000`, request `/ws`; allow Python through Windows Firewall (it's localhost, so usually fine). |
+| `pip install .[reid]` fails | torchreid build issues on Windows | stay on `--no-reid`, or install from source: `pip install git+https://github.com/KaiyangZhou/deep-person-reid.git`. |
+| Mode B: nothing arrives at `/ingest` | OpenCV missing in **TD's** Python | `"<TouchDesigner>\bin\python" -m pip install opencv-python`. |
+| People too small/distant not detected | detection input too low-res | raise `AT_DETECTOR_IMAGE_SIZE` (e.g. 1280); lower `AT_DETECTOR_CONFIDENCE_THRESHOLD`. |
+| Need more FPS | model/input too heavy | lower `AT_DETECTOR_IMAGE_SIZE` (e.g. 768), keep `--no-reid`, ensure CUDA is active. |
+
+Quick end-to-end check while the service runs:
+
+```bat
+curl http://localhost:8000/api/stats     :: {"active_people": N, "total_people_seen": M}
+curl http://localhost:8000/metrics       :: fps / latency_ms / active_people ...
+```

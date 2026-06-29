@@ -5,6 +5,7 @@ Subcommands:
   run            Process a video source headlessly, writing an annotated output.
   benchmark      Run the benchmark scenarios and emit a JSON report.
   capture-agent  Run the venue Capture Agent: stream camera frames to Modal /ingest.
+  doctor         Check the environment (deps + CUDA) and report readiness.
   demo           Quick mock-backend run (no GPU/camera) with stats to stdout.
 """
 
@@ -98,6 +99,17 @@ def cmd_capture_agent(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_doctor(args: argparse.Namespace) -> int:
+    from .diagnostics import main as doctor_main
+
+    argv = []
+    if getattr(args, "require", None):
+        argv += ["--require", args.require]
+    if getattr(args, "require_cuda", False):
+        argv += ["--require-cuda"]
+    return doctor_main(argv)
+
+
 def cmd_demo(args: argparse.Namespace) -> int:
     from .factory import build_pipeline, open_source
 
@@ -166,6 +178,12 @@ def main(argv: list[str] | None = None) -> int:
     p_agent.add_argument("--token", help="Bearer token for the ingestion service")
     p_agent.add_argument("--jpeg-quality", type=int, help="JPEG quality 1-100 (default 85)")
     p_agent.set_defaults(func=cmd_capture_agent)
+
+    p_doctor = sub.add_parser("doctor", help="Check environment (deps + CUDA) and report readiness")
+    p_doctor.add_argument("--require", choices=["serve", "detect", "reid", "agent", "deploy"],
+                          help="Exit non-zero unless this capability is fully available")
+    p_doctor.add_argument("--require-cuda", action="store_true", help="Also require a CUDA GPU")
+    p_doctor.set_defaults(func=cmd_doctor)
 
     p_demo = sub.add_parser("demo", help="Quick mock run, stats to stdout")
     _add_common(p_demo)
