@@ -1,8 +1,8 @@
 # TouchDesigner integration scripts
 
 Drop-in Python for wiring TouchDesigner to a local `audience-tracker serve`
-process. Full setup is in the main README:
-[Run on Windows with TouchDesigner](../README.md#run-on-windows-with-touchdesigner-local-no-modal).
+process. Full setup is in the runbook:
+[Run with TouchDesigner](../docs/touchdesigner.md).
 
 These run **inside TouchDesigner's Python** (they reference `op()`), so they are
 templates/components — they are intentionally not imported or unit-tested by the
