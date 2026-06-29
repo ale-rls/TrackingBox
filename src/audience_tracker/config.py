@@ -97,9 +97,10 @@ class CaptureAgentConfig:
     # Bearer token presented on connect; must match the ingestion service token.
     token: str = ""
     jpeg_quality: int = 85         # 1-100; spec default 85%
-    # Optional downscale before encoding (None = send at capture resolution).
-    resize_width: int | None = None
-    resize_height: int | None = None
+    # Optional downscale before encoding (0 = send at capture resolution). Kept as
+    # int (not None) so AT_* env overrides coerce to int rather than passing a str.
+    resize_width: int = 0
+    resize_height: int = 0
     # Local status endpoint (GET /status).
     status_host: str = "127.0.0.1"
     status_port: int = 9000

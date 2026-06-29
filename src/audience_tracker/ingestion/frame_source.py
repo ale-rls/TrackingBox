@@ -146,6 +146,19 @@ class QueueFrameSource:
         self.dropped_overflow = 0
         self.dropped_out_of_order = 0
 
+    def begin_session(self) -> None:
+        """Reset ordering for a new Capture Agent connection.
+
+        The agent's ``frame_id`` restarts from scratch whenever the agent process
+        restarts, but this (long-lived) queue would otherwise keep the previous
+        session's high ``last_frame_id`` and reject every new frame as
+        out-of-order. Single camera => single agent, so a fresh connection means a
+        fresh frame-id sequence; drop any stale buffered frames too.
+        """
+        with self._cond:
+            self._buf.clear()
+            self._last_id = -1
+
     # -- write side (WebSocket ingestion thread) -- #
     def push(self, frame: Frame) -> bool:
         """Enqueue a frame. Returns False if rejected as late/out-of-order."""

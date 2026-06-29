@@ -46,6 +46,21 @@ def test_out_of_order_and_duplicates_rejected():
     assert [q.next_frame(timeout=0).frame_id for _ in range(2)] == [10, 11]
 
 
+def test_begin_session_resets_ordering_for_restarted_agent():
+    q = QueueFrameSource(maxsize=5)
+    for i in range(1, 11):  # previous agent session reached frame_id 10
+        q.push(_frame(i))
+    assert q.status()["last_frame_id"] == 10
+    # Agent restarts -> frame_id sequence starts over at 1. Without a session
+    # reset these would all be dropped as out-of-order; with it they flow again.
+    q.begin_session()
+    assert q.status()["last_frame_id"] == -1
+    assert q.status()["depth"] == 0          # stale buffered frames cleared
+    assert q.push(_frame(1))
+    assert q.push(_frame(2))
+    assert [q.next_frame(timeout=0).frame_id for _ in range(2)] == [1, 2]
+
+
 def test_timeout_returns_none_when_empty():
     q = QueueFrameSource(maxsize=3)
     assert q.next_frame(timeout=0.01) is None

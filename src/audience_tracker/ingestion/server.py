@@ -62,6 +62,8 @@ def register_ingest_route(
             log.warning("Rejected unauthenticated ingest connection")
             return
         await websocket.accept()
+        # New connection => new frame-id sequence (the agent may have restarted).
+        source.begin_session()
         log.info("Capture Agent connected to /ingest")
         try:
             while True:
@@ -76,18 +78,21 @@ def register_ingest_route(
                     image = decode(pkt["jpeg_bytes"])
                     if image is None:
                         raise InvalidPacket("JPEG failed to decode")
+                    source.push(
+                        Frame(
+                            image=image,
+                            timestamp=pkt["timestamp"],
+                            frame_id=pkt["frame_id"],
+                            width=pkt["width"],
+                            height=pkt["height"],
+                        )
+                    )
                 except InvalidPacket as exc:
                     log.debug("Dropping invalid packet: %s", exc)
                     continue
-                source.push(
-                    Frame(
-                        image=image,
-                        timestamp=pkt["timestamp"],
-                        frame_id=pkt["frame_id"],
-                        width=pkt["width"],
-                        height=pkt["height"],
-                    )
-                )
+                except Exception as exc:  # one bad frame must not kill the stream
+                    log.debug("Dropping frame after error: %s", exc)
+                    continue
         except WebSocketDisconnect:
             pass
         except Exception as exc:  # pragma: no cover - defensive

@@ -143,9 +143,11 @@ class CaptureAgent:
                     continue
             frame = cam.next_frame()
             if frame is None:  # device read failed (e.g. unplugged) -> reopen
-                log.warning("Camera read failed; reopening device")
+                log.warning("Camera read failed; reopening device in %.1fs", backoff)
                 cam.release()
                 cam = None
+                time.sleep(backoff)  # avoid a tight reopen spin while unplugged
+                backoff = min(backoff * 2, self.acfg.reconnect_max_s)
                 continue
             jpeg = self._encode(frame.image)
             if jpeg is None:
