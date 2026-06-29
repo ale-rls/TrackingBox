@@ -15,7 +15,7 @@ from typing import Any, Callable, Optional
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 
 from .frame_source import QueueFrameSource
-from .packet import InvalidPacket, decode_packet
+from .packet import InvalidPacket, decode_packet, decode_text_packet
 from ..models import Frame
 
 log = logging.getLogger("audience_tracker.ingest")
@@ -65,16 +65,22 @@ def register_ingest_route(
         # New connection => new frame-id sequence (the agent may have restarted).
         source.begin_session()
         log.info("Capture Agent connected to /ingest")
+        seq = 0  # monotonic fallback frame_id for senders that omit it (TD)
         try:
             while True:
                 message = await websocket.receive()
                 if message.get("type") == "websocket.disconnect":
                     break
                 data = message.get("bytes")
-                if data is None:
-                    continue  # ignore text / keepalive frames
+                text = message.get("text")
+                if data is None and text is None:
+                    continue  # keepalive / empty frame
                 try:
-                    pkt = decode_packet(data)
+                    if data is not None:
+                        pkt = decode_packet(data)            # Capture Agent (binary)
+                    else:
+                        seq += 1
+                        pkt = decode_text_packet(text, fallback_frame_id=seq)  # TouchDesigner (JSON)
                     image = decode(pkt["jpeg_bytes"])
                     if image is None:
                         raise InvalidPacket("JPEG failed to decode")

@@ -16,8 +16,11 @@ is admitted to the queue (spec: "Validate packets").
 
 from __future__ import annotations
 
+import base64
+import binascii
 import json
 import struct
+import time
 from typing import Any
 
 MAGIC = b"ATF1"  # Audience Tracker Frame, v1
@@ -101,4 +104,53 @@ def decode_packet(data: bytes) -> dict[str, Any]:
         "width": width,
         "height": height,
         "jpeg_bytes": bytes(jpeg),
+    }
+
+
+def decode_text_packet(text: str, fallback_frame_id: int, fallback_timestamp: float | None = None) -> dict[str, Any]:
+    """Parse a TouchDesigner-friendly JSON text frame.
+
+    TD's WebSocket DAT sends text easily, so we accept::
+
+        {"frame_id": 12, "timestamp": 1718000000.5, "width": 1920,
+         "height": 1080, "jpeg_b64": "<base64 JPEG>"}
+
+    Only ``jpeg_b64`` (or ``image_b64``) is required; ``frame_id`` defaults to the
+    supplied monotonic ``fallback_frame_id`` and ``timestamp`` to now, so a minimal
+    TD sender can stream just the image. Returns the same shape as
+    :func:`decode_packet`. Raises :class:`InvalidPacket` on any malformation.
+    """
+    try:
+        obj = json.loads(text)
+    except (json.JSONDecodeError, TypeError) as exc:
+        raise InvalidPacket(f"text frame not valid JSON: {exc}") from exc
+    if not isinstance(obj, dict):
+        raise InvalidPacket("text frame is not a JSON object")
+
+    b64 = obj.get("jpeg_b64") or obj.get("image_b64")
+    if not b64 or not isinstance(b64, str):
+        raise InvalidPacket("text frame missing jpeg_b64")
+    try:
+        jpeg = base64.b64decode(b64, validate=True)
+    except (binascii.Error, ValueError) as exc:
+        raise InvalidPacket(f"jpeg_b64 not valid base64: {exc}") from exc
+    if not jpeg:
+        raise InvalidPacket("empty jpeg payload")
+
+    try:
+        frame_id = int(obj.get("frame_id", fallback_frame_id))
+        timestamp = float(obj.get("timestamp", fallback_timestamp if fallback_timestamp is not None else time.time()))
+        width = int(obj.get("width", 0))
+        height = int(obj.get("height", 0))
+    except (TypeError, ValueError) as exc:
+        raise InvalidPacket(f"bad text frame fields: {exc}") from exc
+    if frame_id < 0:
+        raise InvalidPacket("frame_id must be non-negative")
+
+    return {
+        "frame_id": frame_id,
+        "timestamp": timestamp,
+        "width": width,
+        "height": height,
+        "jpeg_bytes": jpeg,
     }

@@ -21,7 +21,22 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-# Real detection / tracking / ReID stack. Install on the GPU worker.
+# Detection + tracking only (YOLO11 + ByteTrack), NO ReID. This is the
+# Windows / TouchDesigner-friendly install — pair it with a CUDA torch wheel
+# (see docs/WINDOWS_TOUCHDESIGNER.md). ReID is a separate optional extra because
+# torchreid is awkward to build on Windows.
+detect = [
+    "numpy>=1.24",
+    "opencv-python-headless>=4.9",
+    "ultralytics>=8.3",      # provides YOLO11
+    "supervision>=0.20",     # provides ByteTrack
+    "torch>=2.2",
+    "torchvision>=0.17",
+]
+# Optional ReID (OSNet x1.0). The system runs without it (`--no-reid`): GIDs
+# persist per track, only cross-occlusion recovery is lost.
+reid = ["torchreid>=0.2.5"]
+# Full real stack = detection/tracking + ReID (e.g. the Modal GPU worker).
 ml = [
     "numpy>=1.24",
     "opencv-python-headless>=4.9",

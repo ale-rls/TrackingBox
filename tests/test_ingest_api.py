@@ -72,6 +72,22 @@ def test_authenticated_frame_is_decoded_and_enqueued():
     assert stats["capacity"] == 8
 
 
+def test_touchdesigner_text_frame_is_enqueued():
+    import base64
+    import json
+
+    app, source = _app()
+    client = TestClient(app)
+    msg = json.dumps({"frame_id": 5, "jpeg_b64": base64.b64encode(b"\xff\xd8td\xff\xd9").decode()})
+    with client.websocket_connect("/ingest?token=secret") as ws:
+        ws.send_text(msg)
+        deadline = time.time() + 2.0
+        while time.time() < deadline and source.status()["received"] == 0:
+            time.sleep(0.02)
+    st = source.status()
+    assert st["received"] == 1 and st["last_frame_id"] == 5
+
+
 if __name__ == "__main__":
     test_authorized_logic()
     print("ok")

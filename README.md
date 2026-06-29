@@ -44,12 +44,25 @@ is testable on a laptop with **no GPU and no camera**.
 # Core serving layer (API + state logic + mock backend demo)
 pip install -e .
 
-# Real ML stack (GPU worker): YOLO11m + ByteTrack + OSNet
+# Detection + tracking only (YOLO11 + ByteTrack), no ReID — the Windows/
+# TouchDesigner-friendly install (pair with a CUDA torch wheel):
+pip install -e ".[detect]"
+
+# Full real stack (GPU worker): YOLO11m + ByteTrack + OSNet ReID
 pip install -e ".[ml]"
+
+# Add ReID on top of [detect] later (torchreid is awkward on Windows):
+pip install -e ".[reid]"
 
 # Dev/test tooling
 pip install -e ".[dev]"
 ```
+
+**Running locally on Windows with TouchDesigner** (all-local, no Modal): see
+[`docs/WINDOWS_TOUCHDESIGNER.md`](docs/WINDOWS_TOUCHDESIGNER.md). TouchDesigner is
+the camera/renderer and `audience-tracker serve` is the local YOLO service, bridged
+over WebSocket — same pattern as `torinmb/yolo-touchdesigner`. ReID is optional
+there (`--no-reid`): persistent GIDs while tracked, no cross-occlusion recovery.
 
 Python ≥ 3.10. The core/identity logic is pure stdlib; frame processing needs
 numpy (+ OpenCV for the overlay video stream).

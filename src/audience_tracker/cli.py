@@ -23,6 +23,11 @@ def _add_common(p: argparse.ArgumentParser) -> None:
     p.add_argument("--source", help="Camera index, file path or RTSP/HTTP URL")
     p.add_argument("--backend", choices=["auto", "real", "mock"], help="Override backend")
     p.add_argument("--device", choices=["auto", "cpu", "cuda"], help="Inference device")
+    p.add_argument(
+        "--no-reid",
+        action="store_true",
+        help="Disable ReID (detection + tracking only; skips the torchreid dependency)",
+    )
 
 
 def _load_cfg(args: argparse.Namespace) -> Config:
@@ -33,6 +38,8 @@ def _load_cfg(args: argparse.Namespace) -> Config:
         cfg.pipeline.backend = args.backend
     if getattr(args, "device", None):
         cfg.pipeline.device = args.device
+    if getattr(args, "no_reid", False):
+        cfg.reid.enabled = False
     return cfg
 
 

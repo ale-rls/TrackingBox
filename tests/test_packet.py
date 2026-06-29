@@ -9,10 +9,14 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
 import pytest  # noqa: E402
 
+import base64  # noqa: E402
+import json  # noqa: E402
+
 from audience_tracker.ingestion.packet import (  # noqa: E402
     InvalidPacket,
     MAGIC,
     decode_packet,
+    decode_text_packet,
     encode_packet,
 )
 
@@ -56,6 +60,45 @@ def test_missing_payload_rejected():
 def test_non_bytes_rejected():
     with pytest.raises(InvalidPacket):
         decode_packet("not-bytes")  # type: ignore[arg-type]
+
+
+# --- TouchDesigner JSON/base64 text frames --- #
+
+def test_text_packet_round_trip():
+    jpeg = b"\xff\xd8\xff\xe0td-frame\xff\xd9"
+    text = json.dumps({
+        "frame_id": 9,
+        "timestamp": 1718000000.0,
+        "width": 1280,
+        "height": 720,
+        "jpeg_b64": base64.b64encode(jpeg).decode(),
+    })
+    out = decode_text_packet(text, fallback_frame_id=1)
+    assert out["frame_id"] == 9 and out["width"] == 1280
+    assert out["jpeg_bytes"] == jpeg
+
+
+def test_text_packet_minimal_uses_fallback_id():
+    jpeg = b"\xff\xd8minimal\xff\xd9"
+    text = json.dumps({"jpeg_b64": base64.b64encode(jpeg).decode()})
+    out = decode_text_packet(text, fallback_frame_id=42)
+    assert out["frame_id"] == 42 and out["timestamp"] > 0
+    assert out["jpeg_bytes"] == jpeg
+
+
+def test_text_packet_missing_image_rejected():
+    with pytest.raises(InvalidPacket):
+        decode_text_packet(json.dumps({"frame_id": 1}), fallback_frame_id=1)
+
+
+def test_text_packet_bad_base64_rejected():
+    with pytest.raises(InvalidPacket):
+        decode_text_packet(json.dumps({"jpeg_b64": "not!base64!"}), fallback_frame_id=1)
+
+
+def test_text_packet_not_json_rejected():
+    with pytest.raises(InvalidPacket):
+        decode_text_packet("<<<not json>>>", fallback_frame_id=1)
 
 
 if __name__ == "__main__":
