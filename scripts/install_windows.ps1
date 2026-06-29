@@ -186,6 +186,6 @@ Write-Host "  1) Start the service (service owns the camera, ReID off):"
 Write-Host "       scripts\run_windows.bat"
 Write-Host "     or directly:"
 Write-Host "       .venv\Scripts\audience-tracker serve --backend real --device cuda --source 0 --no-reid"
-Write-Host "  2) Wire up TouchDesigner: see docs\WINDOWS_TOUCHDESIGNER.md"
+Write-Host "  2) Wire up TouchDesigner: see the 'Run on Windows with TouchDesigner' section in README.md"
 Write-Host "  3) Re-check anytime:  .venv\Scripts\audience-tracker doctor"
 exit $doctorExit
