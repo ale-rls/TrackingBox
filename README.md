@@ -12,10 +12,19 @@ clustering is maintained with appearance-based ReID.
 > analysis.
 
 ```
-Camera ─▶ YOLO11m ─▶ ByteTrack ─▶ OSNet ReID ─▶ Identity Manager ─┬─▶ Overlay video (/video)
-        (detect)    (track)       (embed/5f)     (GIDs, truth)     ├─▶ REST API  (/api/*)
-                                                                    └─▶ WebSocket (/ws)
+Venue (local)                          Modal (cloud GPU)
+USB camera ─▶ Capture Agent ══WSS══▶ /ingest ─▶ Frame queue ─▶ FrameSource
+              (JPEG, /status)         (auth)     (bounded,        │
+                                                  drop-oldest)    ▼
+                          YOLO11m ─▶ ByteTrack ─▶ OSNet ReID ─▶ Identity Manager ─┬─▶ Overlay video (/video)
+                          (detect)   (track)      (embed/5f)     (GIDs, truth)    ├─▶ REST API  (/api/*)
+                                                                                   └─▶ WebSocket (/ws)
 ```
+
+Frame acquisition/transport is a separate subsystem (see **Video Ingestion**
+below) feeding the pipeline through a `FrameSource` — the pipeline is agnostic to
+whether frames came from a camera, file, RTSP stream, the ingestion queue, or the
+simulator.
 
 ## Why it runs anywhere
 
@@ -104,12 +113,56 @@ ReID embeddings are refreshed every 5 frames for *established* tracks and
 immediately for *new/unmatched* tracks (so a re-entering person is recovered
 without delay). A running (EMA) appearance average per identity smooths matching.
 
+## Video Ingestion (venue → Modal)
+
+Modal has no physical camera, so a separate **Capture Agent** runs on the venue
+computer and streams frames to the cloud. Acquisition/transport only — no CV
+inference happens locally.
+
+```
+USB camera ─▶ Capture Agent ──(JPEG over one long-lived WSS)──▶ /ingest ─▶ bounded queue ─▶ pipeline
+```
+
+* **Capture Agent** (`ingestion/capture_agent.py`): OpenCV capture, timestamp,
+  optional resize, JPEG-compress (quality configurable, default 85%), and stream
+  over a single persistent WebSocket. Never blocks on the network — it always
+  sends the *newest* frame and drops stale ones. Auto-reconnects with exponential
+  backoff; reopens the camera on unplug — no restart. Exposes `GET /status`
+  (`connected`, `fps_capture`, `fps_sent`, `latency_ms`, `frames_dropped`,
+  `uptime_seconds`).
+* **Ingestion Service** (`ingestion/server.py`): the `/ingest` WebSocket on the
+  Modal app. Bearer-token authenticated (WSS), validates + decodes each packet,
+  and pushes it onto a **bounded, drop-oldest queue** (`QueueFrameSource`,
+  default depth 3) so latency never grows. Frames are kept strictly ordered by
+  `frame_id`. `GET /ingest/stats` reports queue depth/received/dropped.
+* **Packet** (`ingestion/packet.py`): a compact binary frame
+  `MAGIC | header_len | {frame_id, timestamp, width, height} | jpeg_bytes`
+  (no base64 overhead).
+* **FrameSource** (`base.py`): the pipeline consumes `next_frame()` and never
+  learns the transport — USB / RTSP / file / queue / simulator are
+  interchangeable.
+
+Run it:
+
+```bash
+# On the venue machine (after: pip install -e ".[agent]")
+audience-tracker capture-agent \
+  --server-url wss://<your-app>.modal.run/ingest \
+  --token "$INGEST_TOKEN" --source 0
+curl localhost:9000/status        # live capture/transport metrics
+```
+
+Set the matching token on Modal via `AT_INGEST_TOKEN` (a Modal secret). If unset,
+auth is disabled (development only). On Modal the pipeline is configured with
+`pipeline.source = "ingest"`.
+
 ## Project layout
 
 ```
 src/audience_tracker/
   config.py        Layered configuration (defaults / JSON / env)
-  models.py        Detection, Track, Identity, AudienceState
+  models.py        Detection, Track, Identity, AudienceState, Frame
+  base.py          Detector / Tracker / ReIDExtractor / FrameSource protocols
   identity.py      IdentityManager  ← source of truth (Identity Rules 1–5)
   vecmath.py       Pure-Python cosine / EMA for embeddings
   detection.py     YOLODetector  | MockDetector
@@ -123,10 +176,11 @@ src/audience_tracker/
   factory.py       Backend resolution + component wiring
   simulator.py     Synthetic crowd (no-GPU demo/test/benchmark)
   benchmark.py     Scenario runner → JSON report
-  cli.py           serve / run / benchmark / demo
-  api/app.py       FastAPI REST + WebSocket + video
-deploy/modal_app.py  Modal deployment
-tests/               Identity, state store, pipeline, API tests
+  cli.py           serve / run / benchmark / capture-agent / demo
+  api/app.py       FastAPI REST + WebSocket + video + /ingest
+  ingestion/       Capture Agent, /ingest WebSocket, packet, FrameSources
+deploy/modal_app.py  Modal deployment (pipeline.source = "ingest")
+tests/               Identity, state store, pipeline, API, packet, queue, ingest
 ```
 
 ## Deployment (Modal)

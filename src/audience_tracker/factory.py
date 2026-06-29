@@ -32,36 +32,27 @@ def resolve_backend(cfg: Config) -> str:
     return "real" if have_real else "mock"
 
 
-class SimulatedCamera:
-    """Drop-in for ``cv2.VideoCapture`` backed by the synthetic simulator."""
+def open_source(cfg: Config, simulator=None, max_frames: int | None = None, ingest_source=None):
+    """Return a :class:`~audience_tracker.base.FrameSource` for the pipeline.
 
-    def __init__(self, simulator, max_frames: int | None = None) -> None:
-        self.sim = simulator
-        self.max_frames = max_frames
-        self._i = 0
+    Resolution order:
+      * ``cfg.pipeline.source == "ingest"`` -> the supplied ingestion queue
+        (created and wired to the ``/ingest`` WebSocket by ``create_app``);
+      * a ``simulator`` was built (mock backend) -> wrap it;
+      * otherwise open ``cfg.pipeline.source`` with OpenCV (device/file/RTSP).
+    """
+    from .ingestion import OpenCVFrameSource, SimulatorFrameSource
 
-    def read(self):
-        if self.max_frames is not None and self._i >= self.max_frames:
-            return False, None
-        self.sim.step()
-        self._i += 1
-        return True, self.sim.render()
-
-    def release(self) -> None:
-        pass
-
-
-def open_source(cfg: Config, simulator=None, max_frames: int | None = None):
-    """Return a camera-like object exposing ``read()`` and ``release()``."""
+    if cfg.pipeline.source == "ingest":
+        if ingest_source is None:
+            raise RuntimeError(
+                "source='ingest' requires the ingestion queue from create_app(); "
+                "run the API service so the /ingest WebSocket is available."
+            )
+        return ingest_source
     if simulator is not None:
-        return SimulatedCamera(simulator, max_frames=max_frames)
-    import cv2
-
-    src = cfg.pipeline.source
-    cap = cv2.VideoCapture(int(src) if src.isdigit() else src)
-    if not cap.isOpened():
-        raise RuntimeError(f"Could not open video source: {src!r}")
-    return cap
+        return SimulatorFrameSource(simulator, max_frames=max_frames)
+    return OpenCVFrameSource(cfg.pipeline.source, max_frames=max_frames, camera=cfg.camera)
 
 
 def build_components(cfg: Config, num_people: int = 24) -> dict:

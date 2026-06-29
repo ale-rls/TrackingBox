@@ -55,16 +55,24 @@ app = modal.App("audience-tracker")
     min_containers=1,     # keep warm during a show
     max_containers=1,     # single-camera => single worker (in-memory state)
 )
-@modal.concurrent(max_inputs=100)  # many API/WS clients, one pipeline
+@modal.concurrent(max_inputs=100)  # many API/WS clients + the Capture Agent, one pipeline
 @modal.asgi_app()
 def api():
     from audience_tracker.api.app import create_app
     from audience_tracker.config import Config
 
-    cfg = Config.load()  # AT_* env vars apply (e.g. AT_PIPELINE_SOURCE)
+    cfg = Config.load()  # AT_* env vars apply
     cfg.pipeline.backend = "real"
     cfg.pipeline.device = "cuda"
     cfg.pipeline.run_pipeline = True
+    # Frames arrive from the venue Capture Agent over the /ingest WebSocket
+    # (Video Ingestion spec) — Modal has no local camera. The agent connects to
+    # wss://<this-app>.modal.run/ingest with the bearer token below.
+    cfg.pipeline.source = "ingest"
+    # Set AT_INGEST_TOKEN via a Modal secret to require authentication, e.g.:
+    #   modal secret create audience-tracker AT_INGEST_TOKEN=...   then add
+    #   secrets=[modal.Secret.from_name("audience-tracker")] to @app.function.
+    # If unset, auth is disabled (development only).
     return create_app(cfg)
 
 

@@ -32,6 +32,26 @@
     "host": "0.0.0.0",
     "port": 8000
   },
+  "camera": {
+    "device_index": 0,
+    "width": 1920,
+    "height": 1080,
+    "fps": 30
+  },
+  "capture_agent": {
+    "server_url": "wss://your-app.modal.run/ingest",
+    "token": "",
+    "jpeg_quality": 85,
+    "status_host": "127.0.0.1",
+    "status_port": 9000,
+    "reconnect_initial_s": 0.5,
+    "reconnect_max_s": 30.0
+  },
+  "ingest": {
+    "token": "",
+    "queue_size": 3,
+    "frame_timeout_s": 1.0
+  },
   "pipeline": {
     "source": "0",
     "backend": "auto",

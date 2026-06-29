@@ -31,6 +31,8 @@ ml = [
     "torchvision>=0.17",
     "torchreid>=0.2.5",      # provides OSNet x1.0
 ]
+# Venue-side Capture Agent: read a camera + JPEG-encode + stream over WebSocket.
+agent = ["numpy>=1.24", "opencv-python-headless>=4.9"]
 deploy = ["modal>=0.64"]
 dev = ["pytest>=8", "numpy>=1.24", "httpx>=0.27", "ruff>=0.4"]
 

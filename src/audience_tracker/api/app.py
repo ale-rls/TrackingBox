@@ -44,10 +44,12 @@ def create_app(cfg: Config | None = None, store: InMemoryStateStore | None = Non
 
             built = build_pipeline(cfg, store=store, num_people=cfg.pipeline.mock_people)
             pipeline = built["pipeline"]
-            camera = open_source(cfg, simulator=built["simulator"])
-            pipeline.start_background(camera)
+            source = open_source(
+                cfg, simulator=built["simulator"], ingest_source=app.state.ingest_source
+            )
+            pipeline.start_background(source)
             app.state.pipeline = pipeline
-            log.info("Pipeline running (%s backend)", built["backend"])
+            log.info("Pipeline running (%s backend, source=%s)", built["backend"], cfg.pipeline.source)
         try:
             yield
         finally:
@@ -58,6 +60,16 @@ def create_app(cfg: Config | None = None, store: InMemoryStateStore | None = Non
     app.state.cfg = cfg
     app.state.store = store
     app.state.pipeline = None
+    app.state.ingest_source = None
+
+    # When the frame source is the ingestion queue, create it and expose the
+    # /ingest WebSocket so the venue Capture Agent can stream frames in.
+    if cfg.pipeline.source == "ingest":
+        from ..ingestion.frame_source import QueueFrameSource
+        from ..ingestion.server import register_ingest_route
+
+        app.state.ingest_source = QueueFrameSource(maxsize=cfg.ingest.queue_size)
+        register_ingest_route(app, app.state.ingest_source, token=cfg.ingest.token)
 
     # -------------------------------------------------------------- #
     # REST
@@ -132,20 +144,19 @@ def create_app(cfg: Config | None = None, store: InMemoryStateStore | None = Non
 
     @app.get("/")
     async def index() -> dict:
-        return {
-            "service": "Audience Tracking System",
-            "version": "1.0.0",
-            "endpoints": [
-                "/api/audience",
-                "/api/audience/{gid}",
-                "/api/stats",
-                "/api/snapshot",
-                "/metrics",
-                "/ws",
-                "/video",
-                "/health",
-            ],
-        }
+        endpoints = [
+            "/api/audience",
+            "/api/audience/{gid}",
+            "/api/stats",
+            "/api/snapshot",
+            "/metrics",
+            "/ws",
+            "/video",
+            "/health",
+        ]
+        if app.state.ingest_source is not None:
+            endpoints += ["/ingest", "/ingest/stats"]
+        return {"service": "Audience Tracking System", "version": "1.0.0", "endpoints": endpoints}
 
     return app
 
