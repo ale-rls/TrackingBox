@@ -225,7 +225,11 @@ class Config:
             for f in fields(section):
                 env_key = f"AT_{section_name.upper()}_{f.name.upper()}"
                 if env_key in environ:
-                    setattr(section, f.name, _coerce(getattr(section, f.name), environ[env_key]))
+                    setattr(
+                        section,
+                        f.name,
+                        _coerce(getattr(section, f.name), environ[env_key], str(f.type)),
+                    )
         return self
 
     def to_dict(self) -> dict[str, Any]:
@@ -252,11 +256,19 @@ def _merge(cfg: Config, data: dict[str, Any]) -> None:
                 setattr(section, key, val)
 
 
-def _coerce(current: Any, raw: str) -> Any:
-    """Coerce an env string to the type of the current value."""
+def _coerce(current: Any, raw: str, ftype: str = "") -> Any:
+    """Coerce an env string to the type of the current value.
+
+    When the current value is None (e.g. ``max_fps: float | None = None``) the
+    declared field type decides, so numeric overrides don't arrive as strings.
+    """
     if isinstance(current, bool):
         return raw.strip().lower() in {"1", "true", "yes", "on"}
     if current is None:
+        if "float" in ftype:
+            return float(raw)
+        if "int" in ftype:
+            return int(raw)
         return raw
     if isinstance(current, int) and not isinstance(current, bool):
         return int(raw)

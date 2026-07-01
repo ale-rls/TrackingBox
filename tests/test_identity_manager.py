@@ -124,6 +124,64 @@ def test_track_ids_never_in_public_state():
     assert "track_id" not in public and "active_track_id" not in public
 
 
+# --------------------------------------------------------------------- #
+# Tracker continuity: bindings survive short detection misses.
+# --------------------------------------------------------------------- #
+def make_manager_no_reid(**identity_overrides) -> IdentityManager:
+    return IdentityManager(IdentityConfig(**identity_overrides), ReIDConfig(enabled=False))
+
+
+def test_same_track_id_survives_short_miss_without_reid():
+    """A missed detection is not a departure: the tracker re-emits the same
+    track id after a short miss, which must resume the same GID — even with
+    ReID disabled (the --no-reid deployment)."""
+    mgr = make_manager_no_reid()
+    mgr.update([track(7)], {}, now=0.0)
+    mgr.update([], {}, now=0.05)                    # one missed frame
+    states = mgr.update([track(7)], {}, now=0.1)    # same tracker id returns
+    assert [s.gid for s in states] == [1]
+    assert mgr.stats()["total_people_seen"] == 1
+
+
+def test_miss_gap_not_counted_in_duration():
+    mgr = make_manager_no_reid()
+    mgr.update([track(1)], {}, now=0.0)
+    mgr.update([], {}, now=1.0)          # invisible 0.0 -> 2.0: must not count
+    mgr.update([track(1)], {}, now=2.0)
+    mgr.update([track(1)], {}, now=3.0)
+    st = mgr.get(1, now=3.0)
+    assert abs(st.duration_seen_seconds - 1.0) < 1e-6
+
+
+def test_id_switch_counted_on_reid_recovery():
+    mgr = make_manager()
+    mgr.update([track(1)], {1: EMB_A}, now=0.0)
+    mgr.update([], {}, now=1.0)
+    mgr.update([track(9)], {9: EMB_A_NOISY}, now=2.0)  # recovered under new id
+    assert mgr.counters()["id_switches"] == 1
+
+
+def test_returning_old_track_id_does_not_steal_recovered_identity():
+    mgr = make_manager()
+    mgr.update([track(1)], {1: EMB_A}, now=0.0)
+    mgr.update([], {}, now=1.0)                        # track 1 lost
+    mgr.update([track(9)], {9: EMB_A_NOISY}, now=2.0)  # GID 1 recovered by track 9
+    # Track 1 re-emerges while 9 is live: its stale binding must not reclaim GID 1.
+    states = mgr.update([track(9), track(1, x=100)], {}, now=3.0)
+    assert sorted(s.gid for s in states) == [1, 2]
+    assert mgr.stats()["total_people_seen"] == 2
+
+
+def test_gc_drops_kept_track_bindings():
+    mgr = make_manager_no_reid(forget_timeout_seconds=0.0)
+    mgr.update([track(1)], {}, now=0.0)
+    mgr.update([], {}, now=1.0)   # lost; GC forgets the identity and its binding
+    assert mgr.known_track_ids() == set()
+    # The same tracker id afterwards means a new person -> new GID (Rule 4).
+    states = mgr.update([track(1)], {}, now=3.0)
+    assert states[0].gid == 2
+
+
 def _run_all():
     funcs = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
     failures = 0

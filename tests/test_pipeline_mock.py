@@ -65,8 +65,36 @@ def test_metrics_populated():
     assert "reid_inference_time_ms" in snap
 
 
+def test_run_survives_frame_processing_errors():
+    """A failing frame must not kill the run loop mid-show: the loop logs,
+    skips the frame, and keeps consuming until the source actually ends."""
+    cfg = Config()
+    cfg.pipeline.backend = "mock"
+    cfg.pipeline.render_overlay = False
+    cfg.pipeline.stream_overlay = False
+    cfg.logging.enabled = False
+    built = build_pipeline(cfg, num_people=4)
+    pipeline = built["pipeline"]
+    source = open_source(cfg, simulator=built["simulator"], max_frames=20)
+
+    real_detect = pipeline.detector.detect
+    calls = {"n": 0}
+
+    def flaky_detect(frame):
+        calls["n"] += 1
+        if calls["n"] in (3, 4):
+            raise RuntimeError("simulated detector fault")
+        return real_detect(frame)
+
+    pipeline.detector.detect = flaky_detect
+    processed = pipeline.run(source)
+    assert calls["n"] == 20    # every frame was attempted
+    assert processed == 18     # the two faulty frames were skipped, not fatal
+
+
 if __name__ == "__main__":
     test_pipeline_runs_and_assigns_gids()
     test_reid_keeps_gid_count_bounded()
     test_metrics_populated()
+    test_run_survives_frame_processing_errors()
     print("ok")

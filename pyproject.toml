@@ -23,7 +23,7 @@ dependencies = [
 [project.optional-dependencies]
 # Detection + tracking only (YOLO11 + ByteTrack), NO ReID. This is the
 # Windows / TouchDesigner-friendly install — pair it with a CUDA torch wheel
-# (see docs/WINDOWS_TOUCHDESIGNER.md). ReID is a separate optional extra because
+# (see docs/touchdesigner.md). ReID is a separate optional extra because
 # torchreid is awkward to build on Windows.
 detect = [
     "numpy>=1.24",

@@ -58,12 +58,21 @@ class IdentityManager:
             present_ids = {t.track_id for t in tracks}
 
             # 1. Update tracks already bound to an identity; queue the rest.
+            # Bindings survive short detection misses: the tracker keeps a lost
+            # track alive (lost_track_buffer) and re-emits the SAME id when the
+            # person is re-detected, and that continuity must map back to the
+            # same GID — even with ReID disabled.
             unbound: list[Track] = []
             for t in tracks:
                 gid = self._track_to_gid.get(t.track_id)
-                if gid is not None and gid in self._identities:
-                    self._touch(self._identities[gid], t, embeddings.get(t.track_id), now)
+                ident = self._identities.get(gid) if gid is not None else None
+                if ident is not None and ident.active_track_id in (None, t.track_id):
+                    self._touch(ident, t, embeddings.get(t.track_id), now)
                 else:
+                    if gid is not None:
+                        # Stale binding: the identity was forgotten, or already
+                        # claimed by another live track via ReID recovery.
+                        self._track_to_gid.pop(t.track_id, None)
                     unbound.append(t)
 
             # 2. Resolve new/unbound tracks: ReID recovery (Rule 2) else new GID.
@@ -73,16 +82,21 @@ class IdentityManager:
                 if gid is not None:
                     ident = self._identities[gid]
                     ident.recoveries += 1
+                    # The tracker issued a new id for this person (otherwise
+                    # step 1 would have rebound it): a recovered id switch.
+                    self._id_switches += 1
                     ident.active_track_id = t.track_id
+                    self._unbind_gid(gid, keep=t.track_id)
                     self._track_to_gid[t.track_id] = gid
                     self._touch(ident, t, emb, now, recovered=True)
                 else:
                     self._create(t, emb, now)
 
-            # 3. Identities whose track vanished this frame become "lost".
+            # 3. Identities whose track vanished this frame become "lost". The
+            # track binding is intentionally kept: a short miss makes the
+            # tracker re-emit the same id, which must resume the same GID.
             for ident in self._identities.values():
                 if ident.active_track_id is not None and ident.active_track_id not in present_ids:
-                    self._track_to_gid.pop(ident.active_track_id, None)
                     ident.active_track_id = None
                     ident.visible = False
 
@@ -125,7 +139,11 @@ class IdentityManager:
         with self._lock:
             return {
                 "active_people": sum(1 for i in self._identities.values() if i.visible),
-                "active_tracks": len(self._track_to_gid),
+                # Bindings persist across short misses, so count only tracks
+                # currently attached to a visible identity.
+                "active_tracks": sum(
+                    1 for i in self._identities.values() if i.active_track_id is not None
+                ),
                 "total_people_seen": self._total_created,
                 "id_switches": self._id_switches,
                 "recoveries": sum(i.recoveries for i in self._identities.values()),
@@ -196,6 +214,12 @@ class IdentityManager:
         ]
         for gid in stale:
             del self._identities[gid]
+            self._unbind_gid(gid)
+
+    def _unbind_gid(self, gid: int, keep: Optional[int] = None) -> None:
+        """Drop track bindings pointing at ``gid`` (except ``keep``)."""
+        for tid in [t for t, g in self._track_to_gid.items() if g == gid and t != keep]:
+            del self._track_to_gid[tid]
 
     @staticmethod
     def _state(ident: Identity, now: float) -> AudienceState:

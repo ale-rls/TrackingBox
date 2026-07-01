@@ -167,6 +167,7 @@ class TrackingPipeline:
         while the Capture Agent is disconnected) the loop keeps waiting; it only
         ends when the source reports ``exhausted`` (file/simulator finished)."""
         processed = 0
+        errors = 0  # consecutive frame failures
         timeout = self.cfg.ingest.frame_timeout_s
         min_dt = 1.0 / self.cfg.pipeline.max_fps if self.cfg.pipeline.max_fps else 0.0
         try:
@@ -179,9 +180,20 @@ class TrackingPipeline:
                     if getattr(source, "exhausted", False):
                         break
                     continue  # live source idle — keep tracking state, wait
-                annotated = self.process_frame(frame.image, frame.frame_id, frame.timestamp)
-                if writer is not None:
-                    writer.write(annotated)
+                try:
+                    annotated = self.process_frame(frame.image, frame.frame_id, frame.timestamp)
+                    if writer is not None:
+                        writer.write(annotated)
+                except Exception:
+                    # One bad frame must not end the show: the thread stays up
+                    # and keeps consuming. Log the first failure of a streak in
+                    # full, then throttle so a persistent fault can't spam.
+                    errors += 1
+                    if errors == 1 or errors % 100 == 0:
+                        log.exception("Frame processing failed (%d consecutive)", errors)
+                    time.sleep(0.1)
+                    continue
+                errors = 0
                 processed += 1
                 if min_dt:
                     elapsed = time.perf_counter() - loop_t0
