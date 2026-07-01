@@ -14,13 +14,13 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
-from calibration_common import parse_points, update_section
+from calibration_common import open_capture, parse_points, update_section
 
 
 def main() -> int:
     args = _parse_args()
     floor_points = parse_points(args.floor_points)
-    frame = _capture_frame(args.source)
+    frame = _capture_frame(args.source, args.config)
     image_points = _collect_clicks(frame, len(floor_points))
 
     update_section(
@@ -63,7 +63,7 @@ def _parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def _capture_frame(source: str):
+def _capture_frame(source: str, config_path: str):
     import cv2
 
     path = Path(source)
@@ -73,8 +73,7 @@ def _capture_frame(source: str):
             raise RuntimeError(f"Could not read image file: {source}")
         return frame
 
-    capture_source = int(source) if source.isdigit() else source
-    cap = cv2.VideoCapture(capture_source)
+    cap = open_capture(source, config_path)
     if not cap.isOpened():
         raise RuntimeError(f"Could not open calibration source: {source}")
     try:

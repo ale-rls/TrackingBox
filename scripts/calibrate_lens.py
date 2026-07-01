@@ -12,7 +12,7 @@ from __future__ import annotations
 import argparse
 import glob
 
-from calibration_common import update_section
+from calibration_common import open_capture, update_section
 
 
 def main() -> int:
@@ -66,8 +66,7 @@ def _load_image_frames(pattern: str):
 def _capture_live_frames(args: argparse.Namespace):
     import cv2
 
-    source = int(args.source) if args.source.isdigit() else args.source
-    cap = cv2.VideoCapture(source)
+    cap = open_capture(args.source, args.config)
     if not cap.isOpened():
         raise RuntimeError(f"Could not open calibration source: {args.source}")
 

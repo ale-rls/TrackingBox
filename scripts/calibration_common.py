@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -34,6 +35,46 @@ def update_section(path: str | Path, section: str, values: dict[str, Any]) -> di
     return config
 
 
+def capture_source(source: str) -> int | str:
+    """Convert numeric camera indices while leaving files/URLs untouched."""
+
+    return int(source) if str(source).isdigit() else source
+
+
+def camera_settings(path: str | Path) -> dict[str, int]:
+    config = load_config(path)
+    camera = config.get("camera")
+    if not isinstance(camera, dict):
+        return {}
+    settings: dict[str, int] = {}
+    for key in ("width", "height", "fps"):
+        value = camera.get(key)
+        if isinstance(value, (int, float)) and value > 0:
+            settings[key] = int(value)
+    return settings
+
+
+def open_capture(source: str, config_path: str | Path):
+    """Open a live/video source with the same camera settings as runtime."""
+
+    import cv2
+
+    resolved = capture_source(source)
+    backends = [None]
+    if isinstance(resolved, int) and sys.platform.startswith("win"):
+        backends.extend([cv2.CAP_DSHOW, cv2.CAP_MSMF])
+
+    last_cap = None
+    for backend in backends:
+        cap = cv2.VideoCapture(resolved) if backend is None else cv2.VideoCapture(resolved, backend)
+        _apply_camera_settings(cap, config_path)
+        if cap.isOpened():
+            return cap
+        cap.release()
+        last_cap = cap
+    return last_cap
+
+
 def parse_points(raw: str) -> list[list[float]]:
     """Parse points from 'x,y;x,y;...'."""
 
@@ -49,3 +90,15 @@ def parse_points(raw: str) -> list[list[float]]:
     if not points:
         raise ValueError("At least one point is required")
     return points
+
+
+def _apply_camera_settings(cap, config_path: str | Path) -> None:
+    import cv2
+
+    settings = camera_settings(config_path)
+    if "width" in settings:
+        cap.set(cv2.CAP_PROP_FRAME_WIDTH, settings["width"])
+    if "height" in settings:
+        cap.set(cv2.CAP_PROP_FRAME_HEIGHT, settings["height"])
+    if "fps" in settings:
+        cap.set(cv2.CAP_PROP_FPS, settings["fps"])
