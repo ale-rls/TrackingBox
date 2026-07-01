@@ -90,6 +90,33 @@ class CameraConfig:
 
 
 @dataclass
+class LensCalibrationConfig:
+    """Optional camera-lens calibration used before floor projection.
+
+    Fisheye correction is applied to points, not necessarily to full frames, so
+    detection can keep running against the raw camera image.
+    """
+
+    enabled: bool = False
+    model: str = "fisheye"  # fisheye | pinhole
+    image_size: tuple[int, int] = (0, 0)
+    camera_matrix: list[list[float]] = field(default_factory=list)
+    distortion_coeffs: list[float] = field(default_factory=list)
+
+
+@dataclass
+class CalibrationConfig:
+    """Image-to-floor calibration for top-down 2D coordinates."""
+
+    enabled: bool = False
+    anchor: str = "bottom_center"  # bottom_center | center
+    floor_space: str = "normalized"
+    image_points: list[list[float]] = field(default_factory=list)
+    floor_points: list[list[float]] = field(default_factory=list)
+    smoothing_alpha: float = 0.35
+
+
+@dataclass
 class CaptureAgentConfig:
     """Local Capture Agent: reads the camera and streams JPEG frames to Modal."""
     # Modal ingestion WebSocket URL, e.g. wss://<app>.modal.run/ingest
@@ -154,6 +181,8 @@ class Config:
     logging: LoggingConfig = field(default_factory=LoggingConfig)
     api: ApiConfig = field(default_factory=ApiConfig)
     camera: CameraConfig = field(default_factory=CameraConfig)
+    lens_calibration: LensCalibrationConfig = field(default_factory=LensCalibrationConfig)
+    calibration: CalibrationConfig = field(default_factory=CalibrationConfig)
     capture_agent: CaptureAgentConfig = field(default_factory=CaptureAgentConfig)
     ingest: IngestConfig = field(default_factory=IngestConfig)
     pipeline: PipelineConfig = field(default_factory=PipelineConfig)
