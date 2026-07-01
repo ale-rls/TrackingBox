@@ -38,6 +38,21 @@
     "height": 1080,
     "fps": 30
   },
+  "lens_calibration": {
+    "enabled": false,
+    "model": "fisheye",
+    "image_size": [1920, 1080],
+    "camera_matrix": [],
+    "distortion_coeffs": []
+  },
+  "calibration": {
+    "enabled": false,
+    "anchor": "bottom_center",
+    "floor_space": "normalized",
+    "image_points": [],
+    "floor_points": [],
+    "smoothing_alpha": 0.35
+  },
   "capture_agent": {
     "server_url": "wss://your-app.modal.run/ingest",
     "token": "",
