@@ -113,6 +113,7 @@ class AudienceState:
     duration_seen_seconds: float
     floor: Optional[tuple[float, float]] = None
     floor_valid: bool = False
+    zone: Optional[str] = None
 
     # ---- serialization variants used by the API ---- #
     def summary(self) -> dict:
@@ -124,6 +125,7 @@ class AudienceState:
             "bbox": _round_bbox(self.bbox),
             "floor": _round_floor(self.floor),
             "floor_valid": self.floor_valid,
+            "zone": self.zone,
         }
 
     def detail(self) -> dict:
@@ -135,6 +137,7 @@ class AudienceState:
             "center": _round_point(self.center),
             "floor": _round_floor(self.floor),
             "floor_valid": self.floor_valid,
+            "zone": self.zone,
             "confidence": round(self.confidence, 3),
             "first_seen": iso(self.first_seen),
             "last_seen": iso(self.last_seen),

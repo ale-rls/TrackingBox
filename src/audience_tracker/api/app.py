@@ -23,15 +23,25 @@ import logging
 from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.responses import JSONResponse, StreamingResponse
 
-from ..config import Config
+from ..config import Config, ZonesConfig
 from ..statestore import InMemoryStateStore
+from ..zones import ZoneError, ZoneMap
 
 log = logging.getLogger("audience_tracker.api")
+
+
+def _build_zone_map(cfg: Config) -> ZoneMap:
+    try:
+        return ZoneMap(cfg.zones)
+    except ZoneError as exc:
+        log.warning("Zone API disabled: %s", exc)
+        return ZoneMap(ZonesConfig(enabled=False))
 
 
 def create_app(cfg: Config | None = None, store: InMemoryStateStore | None = None) -> FastAPI:
     cfg = cfg or Config.load()
     store = store or InMemoryStateStore()
+    zones = _build_zone_map(cfg)
 
     # -------------------------------------------------------------- #
     # Lifecycle: optionally run the tracking pipeline in this process.
@@ -49,7 +59,11 @@ def create_app(cfg: Config | None = None, store: InMemoryStateStore | None = Non
             )
             pipeline.start_background(source)
             app.state.pipeline = pipeline
-            log.info("Pipeline running (%s backend, source=%s)", built["backend"], cfg.pipeline.source)
+            log.info(
+                "Pipeline running (%s backend, source=%s)",
+                built["backend"],
+                cfg.pipeline.source,
+            )
         try:
             yield
         finally:
@@ -59,6 +73,7 @@ def create_app(cfg: Config | None = None, store: InMemoryStateStore | None = Non
     app = FastAPI(title="Audience Tracking System", version="1.0.0", lifespan=lifespan)
     app.state.cfg = cfg
     app.state.store = store
+    app.state.zones = zones
     app.state.pipeline = None
     app.state.ingest_source = None
 
@@ -92,6 +107,14 @@ def create_app(cfg: Config | None = None, store: InMemoryStateStore | None = Non
     @app.get("/api/stats")
     async def get_stats() -> dict:
         return store.get_stats()
+
+    @app.get("/api/zones")
+    async def get_zones() -> dict:
+        return app.state.zones.as_dict()
+
+    @app.get("/api/zones/counts")
+    async def get_zone_counts() -> dict:
+        return store.get_zone_counts()
 
     @app.get("/api/snapshot")
     async def get_snapshot() -> dict:
@@ -148,6 +171,8 @@ def create_app(cfg: Config | None = None, store: InMemoryStateStore | None = Non
             "/api/audience",
             "/api/audience/{gid}",
             "/api/stats",
+            "/api/zones",
+            "/api/zones/counts",
             "/api/snapshot",
             "/metrics",
             "/ws",

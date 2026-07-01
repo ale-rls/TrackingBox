@@ -58,6 +58,7 @@ def test_endpoints_and_websocket():
                 "bbox",
                 "floor",
                 "floor_valid",
+                "zone",
             }
 
         snap = client.get("/api/snapshot").json()
@@ -65,6 +66,10 @@ def test_endpoints_and_websocket():
 
         metrics = client.get("/metrics").json()
         assert "fps" in metrics and "latency_ms" in metrics
+
+        zones = client.get("/api/zones").json()
+        assert set(zones.keys()) == {"enabled", "default_zone", "zones"}
+        assert client.get("/api/zones/counts").json() == {}
 
         # Unknown GID -> 404.
         assert client.get("/api/audience/99999999").status_code == 404
@@ -81,6 +86,27 @@ def test_endpoints_and_websocket():
             first = ws.receive_json()
             assert first["type"] == "snapshot"
             assert "people" in first["data"]
+
+
+def test_zone_endpoints_return_configured_definitions():
+    cfg = Config()
+    cfg.pipeline.run_pipeline = False
+    cfg.zones.enabled = True
+    cfg.zones.default_zone = "outside"
+    cfg.zones.zones = [{"id": "stage", "label": "Stage", "rect": [0, 0, 1, 1]}]
+
+    with TestClient(create_app(cfg)) as client:
+        zones = client.get("/api/zones").json()
+
+    assert zones["enabled"] is True
+    assert zones["default_zone"] == "outside"
+    assert zones["zones"] == [
+        {
+            "id": "stage",
+            "label": "Stage",
+            "points": [[0.0, 0.0], [1.0, 0.0], [1.0, 1.0], [0.0, 1.0]],
+        }
+    ]
 
 
 if __name__ == "__main__":
