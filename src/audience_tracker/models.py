@@ -111,6 +111,8 @@ class AudienceState:
     first_seen: float
     last_seen: float
     duration_seen_seconds: float
+    floor: Optional[tuple[float, float]] = None
+    floor_valid: bool = False
 
     # ---- serialization variants used by the API ---- #
     def summary(self) -> dict:
@@ -120,6 +122,8 @@ class AudienceState:
             "visible": self.visible,
             "center": _round_point(self.center),
             "bbox": _round_bbox(self.bbox),
+            "floor": _round_floor(self.floor),
+            "floor_valid": self.floor_valid,
         }
 
     def detail(self) -> dict:
@@ -129,6 +133,8 @@ class AudienceState:
             "visible": self.visible,
             "bbox": _round_bbox(self.bbox),
             "center": _round_point(self.center),
+            "floor": _round_floor(self.floor),
+            "floor_valid": self.floor_valid,
             "confidence": round(self.confidence, 3),
             "first_seen": iso(self.first_seen),
             "last_seen": iso(self.last_seen),
@@ -142,3 +148,7 @@ def _round_point(p: Optional[Sequence[float]]) -> Optional[list[int]]:
 
 def _round_bbox(b: Optional[Sequence[float]]) -> Optional[list[int]]:
     return [int(round(v)) for v in b] if b else None
+
+
+def _round_floor(p: Optional[Sequence[float]]) -> Optional[list[float]]:
+    return [round(float(p[0]), 4), round(float(p[1]), 4)] if p else None

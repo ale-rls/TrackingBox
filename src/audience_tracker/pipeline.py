@@ -17,8 +17,9 @@ from .config import Config
 from .framelog import FrameLogger
 from .identity import IdentityManager
 from .metrics import MetricsCollector
-from .models import Embedding, Track
+from .models import AudienceState, Embedding, Track
 from .overlay import OverlayRenderer
+from .projection import FloorProjector, ProjectionError
 from .reid import NullReID
 from .statestore import InMemoryStateStore
 
@@ -37,6 +38,7 @@ class TrackingPipeline:
         metrics: Optional[MetricsCollector] = None,
         frame_logger: Optional[FrameLogger] = None,
         overlay: Optional[OverlayRenderer] = None,
+        floor_projector: Optional[FloorProjector] = None,
     ) -> None:
         self.cfg = cfg
         self.detector = detector
@@ -49,6 +51,7 @@ class TrackingPipeline:
             cfg.logging.frame_log_path, cfg.logging.enabled
         )
         self.overlay = overlay or OverlayRenderer(cfg.overlay)
+        self.floor_projector = floor_projector or self._build_floor_projector()
 
         self._stop = threading.Event()
         self._thread: Optional[threading.Thread] = None
@@ -72,6 +75,7 @@ class TrackingPipeline:
         counters = self.identity.counters()
         reid_ms = float(getattr(self.reid, "last_inference_ms", 0.0))
 
+        self._project_floor(snapshot)
         self.metrics.record_frame(
             latency_ms=latency_ms,
             active_people=counters["active_people"],
@@ -87,6 +91,21 @@ class TrackingPipeline:
             if self.cfg.pipeline.stream_overlay:
                 self._publish_frame(frame)
         return frame
+
+    def _build_floor_projector(self) -> FloorProjector | None:
+        try:
+            return FloorProjector(self.cfg.lens_calibration, self.cfg.calibration)
+        except ProjectionError as exc:
+            log.warning("Floor projection disabled: %s", exc)
+            return None
+
+    def _project_floor(self, snapshot: list[AudienceState]) -> None:
+        if self.floor_projector is None:
+            return
+        for state in snapshot:
+            result = self.floor_projector.project_bbox(state.bbox, gid=state.gid)
+            state.floor = result.floor
+            state.floor_valid = result.valid
 
     def _publish_frame(self, frame: Any) -> None:
         try:
