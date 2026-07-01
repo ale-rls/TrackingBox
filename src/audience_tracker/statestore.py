@@ -25,6 +25,7 @@ class InMemoryStateStore:
         self._by_gid: dict[int, AudienceState] = {}
         self._stats: dict = {"active_people": 0, "total_people_seen": 0}
         self._metrics: dict = {}
+        self._zone_counts: dict[str, int] = {}
         self._updated_at: float = time.time()
         self._frame_jpeg: Optional[bytes] = None
 
@@ -42,6 +43,7 @@ class InMemoryStateStore:
         snapshot: list[AudienceState],
         stats: dict,
         metrics: Optional[dict] = None,
+        zone_counts: Optional[dict[str, int]] = None,
     ) -> None:
         events: list[dict] = []
         with self._lock:
@@ -49,6 +51,8 @@ class InMemoryStateStore:
             self._stats = stats
             if metrics is not None:
                 self._metrics = metrics
+            if zone_counts is not None:
+                self._zone_counts = dict(zone_counts)
             self._updated_at = time.time()
 
             # Diff against the previous publish to emit only changes.
@@ -61,6 +65,7 @@ class InMemoryStateStore:
                     tuple(summ["bbox"] or ()),
                     tuple(summ["floor"] or ()),
                     summ["floor_valid"],
+                    summ["zone"],
                 )
                 current[s.gid] = key
                 if self._prev_summary.get(s.gid) != key:
@@ -75,6 +80,7 @@ class InMemoryStateStore:
                         "bbox": None,
                         "floor": None,
                         "floor_valid": False,
+                        "zone": None,
                     }
                 )
             self._prev_summary = current
@@ -102,6 +108,10 @@ class InMemoryStateStore:
         with self._lock:
             return dict(self._metrics)
 
+    def get_zone_counts(self) -> dict[str, int]:
+        with self._lock:
+            return dict(self._zone_counts)
+
     def set_frame(self, jpeg: bytes) -> None:
         with self._lock:
             self._frame_jpeg = jpeg
@@ -115,6 +125,7 @@ class InMemoryStateStore:
             return {
                 "timestamp": _iso(self._updated_at),
                 "active_people": sum(1 for s in self._by_gid.values() if s.visible),
+                "zone_counts": dict(self._zone_counts),
                 "people": [s.detail() for s in self._by_gid.values()],
             }
 

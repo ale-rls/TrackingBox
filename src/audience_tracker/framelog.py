@@ -38,6 +38,7 @@ class FrameLogger:
                     "center": [int(round(c)) for c in s.center] if s.center else None,
                     "floor": [round(float(c), 4) for c in s.floor] if s.floor else None,
                     "floor_valid": s.floor_valid,
+                    "zone": s.zone,
                     "visible": s.visible,
                 }
                 for s in states

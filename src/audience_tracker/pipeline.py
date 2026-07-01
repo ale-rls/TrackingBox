@@ -22,6 +22,7 @@ from .overlay import OverlayRenderer
 from .projection import FloorProjector, ProjectionError
 from .reid import NullReID
 from .statestore import InMemoryStateStore
+from .zones import ZoneError, ZoneMap
 
 log = logging.getLogger("audience_tracker.pipeline")
 
@@ -39,6 +40,7 @@ class TrackingPipeline:
         frame_logger: Optional[FrameLogger] = None,
         overlay: Optional[OverlayRenderer] = None,
         floor_projector: Optional[FloorProjector] = None,
+        zone_map: Optional[ZoneMap] = None,
     ) -> None:
         self.cfg = cfg
         self.detector = detector
@@ -52,6 +54,7 @@ class TrackingPipeline:
         )
         self.overlay = overlay or OverlayRenderer(cfg.overlay)
         self.floor_projector = floor_projector or self._build_floor_projector()
+        self.zone_map = zone_map or self._build_zone_map()
 
         self._stop = threading.Event()
         self._thread: Optional[threading.Thread] = None
@@ -76,6 +79,7 @@ class TrackingPipeline:
         reid_ms = float(getattr(self.reid, "last_inference_ms", 0.0))
 
         self._project_floor(snapshot)
+        zone_counts = self._assign_zones(snapshot)
         self.metrics.record_frame(
             latency_ms=latency_ms,
             active_people=counters["active_people"],
@@ -83,7 +87,12 @@ class TrackingPipeline:
             reid_ms=reid_ms,
             id_switches=counters["id_switches"],
         )
-        self.store.publish(snapshot, self.identity.stats(), self.metrics.snapshot())
+        self.store.publish(
+            snapshot,
+            self.identity.stats(),
+            self.metrics.snapshot(),
+            zone_counts=zone_counts,
+        )
         self.frame_logger.log(frame_index, now, snapshot)
 
         if self.cfg.pipeline.render_overlay:
@@ -106,6 +115,23 @@ class TrackingPipeline:
             result = self.floor_projector.project_bbox(state.bbox, gid=state.gid)
             state.floor = result.floor
             state.floor_valid = result.valid
+
+    def _build_zone_map(self) -> ZoneMap | None:
+        try:
+            return ZoneMap(self.cfg.zones)
+        except ZoneError as exc:
+            log.warning("Zone mapping disabled: %s", exc)
+            return None
+
+    def _assign_zones(self, snapshot: list[AudienceState]) -> dict[str, int]:
+        if self.zone_map is None:
+            return {}
+        zone_points = []
+        for state in snapshot:
+            floor = state.floor if state.visible and state.floor_valid else None
+            state.zone = self.zone_map.zone_for(floor)
+            zone_points.append(floor)
+        return self.zone_map.counts_for(zone_points)
 
     def _publish_frame(self, frame: Any) -> None:
         try:

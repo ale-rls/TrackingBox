@@ -31,6 +31,7 @@ def test_read_shapes_match_spec():
             "bbox": [10, 0, 20, 20],
             "floor": None,
             "floor_valid": False,
+            "zone": None,
         }
     ]
 
@@ -42,6 +43,7 @@ def test_read_shapes_match_spec():
 
     snap = store.get_snapshot()
     assert snap["active_people"] == 1 and len(snap["people"]) == 1 and "timestamp" in snap
+    assert snap["zone_counts"] == {}
 
     assert store.get_member(999) is None
 
@@ -51,6 +53,20 @@ def test_publish_is_idempotent_for_reads():
     store.publish([_state(1), _state(2, x=50)], {"active_people": 2, "total_people_seen": 2})
     store.publish([_state(1), _state(2, x=50)], {"active_people": 2, "total_people_seen": 2})
     assert len(store.get_active()) == 2
+
+
+def test_store_publishes_zone_counts():
+    store = InMemoryStateStore()
+    state = _state(1)
+    state.zone = "left"
+    store.publish(
+        [state],
+        {"active_people": 1, "total_people_seen": 1},
+        zone_counts={"left": 1, "right": 0},
+    )
+
+    assert store.get_active()[0]["zone"] == "left"
+    assert store.get_zone_counts() == {"left": 1, "right": 0}
 
 
 if __name__ == "__main__":

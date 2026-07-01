@@ -57,3 +57,35 @@ def test_pipeline_publishes_floor_position_from_bbox_anchor():
     assert len(active) == 1
     assert active[0]["floor"] == [0.2, 0.8]
     assert active[0]["floor_valid"] is True
+
+
+def test_pipeline_assigns_floor_zone_and_counts():
+    cfg = Config()
+    cfg.reid.enabled = False
+    cfg.pipeline.render_overlay = False
+    cfg.pipeline.stream_overlay = False
+    cfg.logging.enabled = False
+    cfg.calibration.enabled = True
+    cfg.calibration.image_points = [[0, 0], [100, 0], [100, 100], [0, 100]]
+    cfg.calibration.floor_points = [[0, 0], [1, 0], [1, 1], [0, 1]]
+    cfg.zones.enabled = True
+    cfg.zones.default_zone = "outside"
+    cfg.zones.zones = [
+        {"id": "front", "rect": [0, 0, 1, 0.5]},
+        {"id": "back", "rect": [0, 0.5, 1, 1]},
+    ]
+
+    store = InMemoryStateStore()
+    pipeline = TrackingPipeline(
+        cfg=cfg,
+        detector=OnePersonDetector(),
+        tracker=PassthroughTracker(),
+        reid=NoReID(),
+        store=store,
+    )
+
+    pipeline.process_frame(frame=object(), frame_index=1, now=1.0)
+
+    active = store.get_active()
+    assert active[0]["zone"] == "back"
+    assert store.get_zone_counts() == {"front": 0, "back": 1, "outside": 0}
