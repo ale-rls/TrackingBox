@@ -69,6 +69,15 @@ fisheye correction to those points before computing/applying the homography.
 
 ## Lens Calibration
 
+Generate an A4 checkerboard target:
+
+```bat
+python scripts\generate_checkerboard.py --output outputs\checkerboard_a4.pdf
+```
+
+Print it at 100% / actual size. The default target is `9x6` inner corners,
+which means the printed pattern has `10x7` squares.
+
 Run lens calibration with a checkerboard visible to the fisheye camera:
 
 ```bat
