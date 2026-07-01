@@ -55,13 +55,28 @@ class InMemoryStateStore:
             current: dict[int, tuple] = {}
             for s in snapshot:
                 summ = s.summary()
-                key = (summ["visible"], tuple(summ["center"] or ()), tuple(summ["bbox"] or ()))
+                key = (
+                    summ["visible"],
+                    tuple(summ["center"] or ()),
+                    tuple(summ["bbox"] or ()),
+                    tuple(summ["floor"] or ()),
+                    summ["floor_valid"],
+                )
                 current[s.gid] = key
                 if self._prev_summary.get(s.gid) != key:
                     events.append(summ)
             # Identities that dropped out of the snapshot entirely -> gone/hidden.
             for gid in self._prev_summary.keys() - current.keys():
-                events.append({"gid": gid, "visible": False, "center": None, "bbox": None})
+                events.append(
+                    {
+                        "gid": gid,
+                        "visible": False,
+                        "center": None,
+                        "bbox": None,
+                        "floor": None,
+                        "floor_valid": False,
+                    }
+                )
             self._prev_summary = current
 
         for ev in events:

@@ -51,7 +51,14 @@ def test_endpoints_and_websocket():
         audience = client.get("/api/audience").json()
         assert isinstance(audience, list)
         for entry in audience:  # GID-only contract
-            assert set(entry.keys()) == {"gid", "visible", "center", "bbox"}
+            assert set(entry.keys()) == {
+                "gid",
+                "visible",
+                "center",
+                "bbox",
+                "floor",
+                "floor_valid",
+            }
 
         snap = client.get("/api/snapshot").json()
         assert "timestamp" in snap and "people" in snap

@@ -23,7 +23,16 @@ def test_read_shapes_match_spec():
     store.publish([_state(17)], {"active_people": 1, "total_people_seen": 1})
 
     active = store.get_active()
-    assert active == [{"gid": 17, "visible": True, "center": [15, 10], "bbox": [10, 0, 20, 20]}]
+    assert active == [
+        {
+            "gid": 17,
+            "visible": True,
+            "center": [15, 10],
+            "bbox": [10, 0, 20, 20],
+            "floor": None,
+            "floor_valid": False,
+        }
+    ]
 
     member = store.get_member(17)
     assert member["gid"] == 17 and "duration_seen_seconds" in member
