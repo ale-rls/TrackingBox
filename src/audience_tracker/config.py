@@ -117,6 +117,15 @@ class CalibrationConfig:
 
 
 @dataclass
+class ZonesConfig:
+    """Named regions in calibrated floor space."""
+
+    enabled: bool = False
+    default_zone: str | None = None
+    zones: list[dict[str, Any]] = field(default_factory=list)
+
+
+@dataclass
 class CaptureAgentConfig:
     """Local Capture Agent: reads the camera and streams JPEG frames to Modal."""
     # Modal ingestion WebSocket URL, e.g. wss://<app>.modal.run/ingest
@@ -183,6 +192,7 @@ class Config:
     camera: CameraConfig = field(default_factory=CameraConfig)
     lens_calibration: LensCalibrationConfig = field(default_factory=LensCalibrationConfig)
     calibration: CalibrationConfig = field(default_factory=CalibrationConfig)
+    zones: ZonesConfig = field(default_factory=ZonesConfig)
     capture_agent: CaptureAgentConfig = field(default_factory=CaptureAgentConfig)
     ingest: IngestConfig = field(default_factory=IngestConfig)
     pipeline: PipelineConfig = field(default_factory=PipelineConfig)
