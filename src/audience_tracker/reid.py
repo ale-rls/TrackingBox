@@ -30,7 +30,10 @@ def _crop(frame: np.ndarray, bbox: BBox) -> np.ndarray:
 
 class OSNetExtractor:
     def __init__(self, cfg: ReIDConfig, device: str = "auto") -> None:
-        from torchreid.utils import FeatureExtractor  # heavy import
+        try:
+            from torchreid.utils import FeatureExtractor  # type: ignore[import-not-found]
+        except ModuleNotFoundError:
+            from torchreid.reid.utils import FeatureExtractor  # type: ignore[import-not-found]
 
         dev = "cuda" if device in ("auto", "cuda") else "cpu"
         self.extractor = FeatureExtractor(model_name=cfg.model_name, device=dev)
