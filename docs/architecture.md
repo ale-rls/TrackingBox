@@ -2,7 +2,8 @@
 
 How the system is wired, the public API surface, and the identity guarantees that
 make GIDs trustworthy. For deployment, see [TouchDesigner](touchdesigner.md) or
-[Modal](modal.md).
+[Modal](modal.md). For spatial calibration, see
+[Floor Projection Calibration](floor_projection.md).
 
 ## Identity model (source of truth)
 
@@ -26,12 +27,12 @@ consumers use GIDs exclusively.
 
 | Method | Path | Description |
 |---|---|---|
-| GET | `/api/audience` | Active audience: `[{gid, visible, center, bbox}]` |
+| GET | `/api/audience` | Active audience: `[{gid, visible, center, bbox, floor, floor_valid}]` |
 | GET | `/api/audience/{gid}` | One member: `{gid, visible, duration_seen_seconds, ...}` |
 | GET | `/api/stats` | `{active_people, total_people_seen}` |
 | GET | `/api/snapshot` | `{timestamp, active_people, people:[...]}` |
 | GET | `/metrics` | `{fps, latency_ms, gpu_utilization, active_people, active_tracks, reid_inference_time_ms, id_switches}` |
-| WS | `/ws` | Primes with a snapshot, then streams `{gid, visible, center, bbox}` on every change |
+| WS | `/ws` | Primes with a snapshot, then streams `{gid, visible, center, bbox, floor, floor_valid}` on every change |
 | GET | `/video` | MJPEG overlay stream |
 | GET | `/health` | Liveness |
 
@@ -48,6 +49,7 @@ src/audience_tracker/
   tracking.py      ByteTrackTracker | IoUTracker (fallback)
   reid.py          OSNetExtractor | MockReID | NullReID
   overlay.py       OverlayRenderer (#GID labels; debug conf)
+  projection.py    Fisheye-aware image-to-floor projection
   metrics.py       MetricsCollector (fps/latency/gpu/reid time)
   framelog.py      Replayable JSONL frame logger
   statestore.py    Shared state + WebSocket fan-out (Redis = future)

@@ -6,8 +6,7 @@ venue computer and streams frames to the cloud over a single long-lived WebSocke
 Acquisition/transport only — no CV inference happens locally.
 
 > Want to run everything on the venue PC instead, with no cloud? See
-> [Run with TouchDesigner](touchdesigner.md). (Its "Mode B" reuses the same
-> `/ingest` endpoint described here.)
+> [Run with TouchDesigner](touchdesigner.md).
 
 ```
 USB camera ─▶ Capture Agent ──(JPEG over one long-lived WSS)──▶ /ingest ─▶ bounded queue ─▶ pipeline

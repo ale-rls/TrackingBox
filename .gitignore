@@ -8,6 +8,7 @@ dist/
 .venv/
 venv/
 .env
+config.json
 
 # Tooling
 .pytest_cache/

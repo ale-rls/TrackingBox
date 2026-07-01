@@ -89,7 +89,8 @@ REST + WebSocket, **GIDs only** — tracker IDs never cross the boundary. Endpoi
 
 ## Docs
 
-* [docs/touchdesigner.md](docs/touchdesigner.md) — local Windows + TouchDesigner runbook (Mode A/B, troubleshooting)
+* [docs/touchdesigner.md](docs/touchdesigner.md) — local Windows + TouchDesigner runbook, presets, launcher, troubleshooting
+* [docs/floor_projection.md](docs/floor_projection.md) — fisheye/floor calibration and top-down `floor` coordinates
 * [docs/modal.md](docs/modal.md) — cloud path: Capture Agent + `/ingest` + Modal deploy
 * [docs/architecture.md](docs/architecture.md) — identity model, API reference, project layout, performance, tests
 
