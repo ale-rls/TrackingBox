@@ -10,13 +10,15 @@ not imported by the Python package.
 | File | Purpose |
 |---|---|
 | `td_launch_tracker.py` | Reads a preset Table DAT and launches/stops the local tracker service. |
-| `td_receive_state.py` | Callbacks DAT for a WebSocket DAT on `/ws`. Keeps a Table DAT `audience` (`gid, visible, cx, cy, x1...y2, floor_x, floor_y, floor_valid`) in sync with live GIDs. |
+| `td_receive_state.py` | WebSocket callbacks that keep the `audience` table in sync. |
+| `td_fetch_zone_counts.py` | Polls `/api/zones/counts` into a `zone_counts` table. |
 
 The service owns the camera; TouchDesigner consumes output with:
 
 * **Video Stream In TOP**: `http://localhost:8000/video`
 * **WebSocket DAT**: `ws://localhost:8000/ws`
 * **Callbacks DAT**: `td_receive_state.py`
+* **Zone counts**: call `mod('td_fetch_zone_counts').poll()`
 
 `td_launch_tracker.py` expects a Table DAT named `tracker_presets`. Add one row
 per camera/server preset:
@@ -46,3 +48,5 @@ Only GIDs cross the boundary; tracker ids never leave the service.
 For top-down floor positions, calibrate the venue camera and use `floor_x` /
 `floor_y` instead of `cx` / `cy`. See
 [Floor Projection Calibration](../docs/floor_projection.md).
+
+For named floor regions and counts, see [Floor Zones](../docs/zones.md).

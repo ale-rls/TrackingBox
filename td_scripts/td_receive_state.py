@@ -6,13 +6,13 @@
 # you can drive instancing, labels, particles, etc. from persistent GIDs.
 #
 # The server sends:
-#   * once on connect:  {"type":"snapshot","data":{"people":[{gid,center,bbox,floor,...}]}}
-#   * then per change:  {"gid":17,"visible":true,"center":[cx,cy],"bbox":[...],"floor":[fx,fy]}
+#   * once on connect:  {"type":"snapshot","data":{"people":[{gid,center,bbox,floor,zone,...}]}}
+#   * then per change:  {"gid":17,"visible":true,"center":[cx,cy],"floor":[fx,fy],"zone":"left"}
 #
 # Only GIDs are ever exposed — there are no tracker ids here, by design.
 #
 # Setup: create a Table DAT called 'audience'. This script writes these columns:
-#   gid  visible  cx  cy  x1  y1  x2  y2  floor_x  floor_y  floor_valid
+#   gid  visible  cx  cy  x1  y1  x2  y2  floor_x  floor_y  floor_valid  zone
 #
 # This file runs inside TouchDesigner's Python (it references op()/parent()); it
 # is not part of the Python package and is not unit-tested here.
@@ -32,6 +32,7 @@ HEADERS = [
     'floor_x',
     'floor_y',
     'floor_valid',
+    'zone',
 ]
 
 
@@ -51,6 +52,7 @@ def _row_values(entry):
     floor = entry.get('floor') or [0, 0]
     visible = 1 if entry.get('visible') else 0
     floor_valid = 1 if entry.get('floor_valid') else 0
+    zone = entry.get('zone') or ''
     return [
         gid,
         visible,
@@ -63,6 +65,7 @@ def _row_values(entry):
         floor[0],
         floor[1],
         floor_valid,
+        zone,
     ]
 
 

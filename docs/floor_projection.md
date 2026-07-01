@@ -18,7 +18,8 @@ The public API keeps the original image-space fields and adds floor-space fields
   "center": [812, 521],
   "bbox": [760, 230, 864, 824],
   "floor": [0.43, 0.71],
-  "floor_valid": true
+  "floor_valid": true,
+  "zone": "answer_a"
 }
 ```
 
@@ -133,11 +134,13 @@ Expected result:
 In TouchDesigner, `td_receive_state.py` writes:
 
 ```text
-gid visible cx cy x1 y1 x2 y2 floor_x floor_y floor_valid
+gid visible cx cy x1 y1 x2 y2 floor_x floor_y floor_valid zone
 ```
 
 Use `floor_x` and `floor_y` for top-down instancing. Keep `floor_valid` as a gate
 so uncalibrated or invalid people do not drive zone/game state.
+
+Named regions and counts are documented in [Floor Zones](zones.md).
 
 ## Validation Checklist
 
