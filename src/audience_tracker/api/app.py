@@ -135,7 +135,18 @@ def create_app(cfg: Config | None = None, store: InMemoryStateStore | None = Non
             # Prime the client with the current full snapshot.
             await websocket.send_json({"type": "snapshot", "data": store.get_snapshot()})
             while True:
-                message = await queue.get()
+                if cfg.api.ws_heartbeat_interval_s > 0:
+                    try:
+                        message = await asyncio.wait_for(
+                            queue.get(), timeout=cfg.api.ws_heartbeat_interval_s
+                        )
+                    except asyncio.TimeoutError:
+                        await websocket.send_json(
+                            {"type": "snapshot", "data": store.get_snapshot()}
+                        )
+                        continue
+                else:
+                    message = await queue.get()
                 await websocket.send_json(message)
         except WebSocketDisconnect:
             pass

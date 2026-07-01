@@ -78,6 +78,9 @@ class LoggingConfig:
 class ApiConfig:
     host: str = "0.0.0.0"
     port: int = 8000
+    # Application-level keepalive for clients that do not expose WebSocket pings
+    # cleanly (for example TouchDesigner WebSocket DAT).
+    ws_heartbeat_interval_s: float = 10.0
 
 
 @dataclass

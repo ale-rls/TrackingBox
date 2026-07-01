@@ -12,11 +12,14 @@ WebSocket subscription happen on the asyncio loop thread.
 from __future__ import annotations
 
 import asyncio
+import logging
 import threading
 import time
 from typing import Optional
 
 from .models import AudienceState
+
+log = logging.getLogger("audience_tracker.statestore")
 
 
 class InMemoryStateStore:
@@ -138,18 +141,25 @@ class InMemoryStateStore:
 
     def subscribe(self) -> asyncio.Queue:
         q: asyncio.Queue = asyncio.Queue(maxsize=self._ws_queue_size)
-        self._subscribers.add(q)
+        with self._lock:
+            self._subscribers.add(q)
         return q
 
     def unsubscribe(self, q: asyncio.Queue) -> None:
-        self._subscribers.discard(q)
+        with self._lock:
+            self._subscribers.discard(q)
 
     def _broadcast(self, message: dict) -> None:
         loop = self._loop
-        if loop is None or not self._subscribers:
+        if loop is None:
             return
-        for q in list(self._subscribers):
-            loop.call_soon_threadsafe(self._safe_put, q, message)
+        with self._lock:
+            subscribers = list(self._subscribers)
+        for q in subscribers:
+            try:
+                loop.call_soon_threadsafe(self._safe_put, q, message)
+            except RuntimeError as exc:
+                log.debug("Skipping WebSocket broadcast: %s", exc)
 
     @staticmethod
     def _safe_put(q: asyncio.Queue, message: dict) -> None:

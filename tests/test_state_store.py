@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import os
 import sys
 
@@ -67,6 +68,18 @@ def test_store_publishes_zone_counts():
 
     assert store.get_active()[0]["zone"] == "left"
     assert store.get_zone_counts() == {"left": 1, "right": 0}
+
+
+def test_broadcast_failure_does_not_break_publish():
+    store = InMemoryStateStore()
+    loop = asyncio.new_event_loop()
+    store.attach_loop(loop)
+    store.subscribe()
+    loop.close()
+
+    store.publish([_state(1)], {"active_people": 1, "total_people_seen": 1})
+
+    assert store.get_stats() == {"active_people": 1, "total_people_seen": 1}
 
 
 if __name__ == "__main__":

@@ -47,6 +47,11 @@ In TouchDesigner:
 * **Callbacks DAT**: `td_scripts/td_receive_state.py`
 * **Output table**: Table DAT named `audience`
 
+Enable the WebSocket DAT's auto-reconnect option if it is available in your
+TouchDesigner build. The server sends a fresh snapshot on connect and refreshes
+that snapshot periodically while the scene is quiet, so reconnects should heal
+the table automatically.
+
 The `audience` table columns are:
 
 ```text
@@ -169,6 +174,7 @@ Run `audience-tracker doctor` first; it pinpoints most setup issues.
 | `Could not open video source: '0'` | Wrong camera index or camera in use | Try `--source 1`, `2`, etc.; close other apps using the camera. |
 | Video Stream In TOP stays black | Service down or wrong URL | Check `http://localhost:8000/health`; URL must be `http://localhost:8000/video`. |
 | WebSocket DAT will not connect | Wrong address/port or firewall | Use `localhost` / `8000` / `/ws`; allow Python through Windows Firewall. |
+| Audience table stops refreshing | WebSocket DAT dropped and did not reconnect | Enable auto-reconnect on the WebSocket DAT, then pulse Active off/on. The server resends a full snapshot after reconnect. |
 | `pip install .[reid]` fails | `torchreid` build issue on Windows | Keep `reid` set to `0`, or install `deep-person-reid` from source. |
 | Small/distant people missed | Detection input too low-res | Raise `image_size` to `1280`; lower `confidence`. |
 | Need more FPS | Model/input too heavy | Lower `image_size`, keep ReID off, ensure CUDA is active. |

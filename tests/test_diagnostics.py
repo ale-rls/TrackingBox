@@ -23,12 +23,17 @@ def test_report_shape_and_never_raises():
 
 
 def test_serve_capability_available_in_test_env():
-    # The dev/test env has fastapi+uvicorn+websockets, so 'serve' is satisfied,
-    # while the heavy 'detect' stack (torch/cv2/...) is not.
+    # The dev/test env has fastapi+uvicorn+websockets, so 'serve' is satisfied.
+    # The heavier detect stack varies by machine; assert the report is internally
+    # consistent rather than assuming a CPU-only CI environment.
     rep = dx.report()
     assert dx.capability_ok(rep, "serve") is True
-    assert dx.capability_ok(rep, "detect") is False
-    assert "torch" in dx.missing_modules(rep, "detect")
+    missing = dx.missing_modules(rep, "detect")
+    if dx.capability_ok(rep, "detect"):
+        assert missing == []
+    else:
+        assert missing
+        assert all(rep["modules"][name]["available"] is False for name in missing)
 
 
 def test_format_report_is_readable():
@@ -37,9 +42,14 @@ def test_format_report_is_readable():
 
 
 def test_doctor_require_exit_codes():
+    rep = dx.report()
     assert dx.main(["--require", "serve"]) == 0
-    assert dx.main(["--require", "detect"]) == 1
-    assert dx.main(["--require-cuda"]) == 1  # no GPU in CI/laptop
+    assert dx.main(["--require", "detect"]) == (
+        0 if dx.capability_ok(rep, "detect") else 1
+    )
+    assert dx.main(["--require-cuda"]) == (
+        0 if rep["cuda"]["cuda_available"] else 1
+    )
 
 
 if __name__ == "__main__":

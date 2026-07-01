@@ -109,6 +109,21 @@ def test_zone_endpoints_return_configured_definitions():
     ]
 
 
+def test_websocket_refreshes_snapshot_when_state_is_quiet():
+    cfg = Config()
+    cfg.pipeline.run_pipeline = False
+    cfg.api.ws_heartbeat_interval_s = 0.01
+
+    with TestClient(create_app(cfg)) as client:
+        with client.websocket_connect("/ws") as ws:
+            first = ws.receive_json()
+            second = ws.receive_json()
+
+    assert first["type"] == "snapshot"
+    assert second["type"] == "snapshot"
+    assert "people" in second["data"]
+
+
 if __name__ == "__main__":
     test_endpoints_and_websocket()
     print("ok")

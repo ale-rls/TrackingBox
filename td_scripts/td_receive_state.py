@@ -111,10 +111,7 @@ def onReceiveText(dat, rowIndex, message):
     return
 
 
-# Optional: clear the table if the connection drops.
+# Keep the last known table contents if the connection drops. The server sends
+# a full snapshot when TD reconnects, so stale rows are corrected on recovery.
 def onDisconnect(dat):
-    t = op(TABLE)
-    if t is not None:
-        t.clear()
-        t.appendRow(HEADERS)
     return
