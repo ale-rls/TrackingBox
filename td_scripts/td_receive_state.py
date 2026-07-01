@@ -6,13 +6,13 @@
 # you can drive instancing, labels, particles, etc. from persistent GIDs.
 #
 # The server sends:
-#   * once on connect:  {"type":"snapshot","data":{"people":[{gid,center,bbox,...}]}}
-#   * then per change:  {"gid":17,"visible":true,"center":[cx,cy],"bbox":[x1,y1,x2,y2]}
+#   * once on connect:  {"type":"snapshot","data":{"people":[{gid,center,bbox,floor,...}]}}
+#   * then per change:  {"gid":17,"visible":true,"center":[cx,cy],"bbox":[...],"floor":[fx,fy]}
 #
 # Only GIDs are ever exposed — there are no tracker ids here, by design.
 #
 # Setup: create a Table DAT called 'audience'. This script writes these columns:
-#   gid  visible  cx  cy  x1  y1  x2  y2
+#   gid  visible  cx  cy  x1  y1  x2  y2  floor_x  floor_y  floor_valid
 #
 # This file runs inside TouchDesigner's Python (it references op()/parent()); it
 # is not part of the Python package and is not unit-tested here.
@@ -20,7 +20,19 @@
 import json
 
 TABLE = 'audience'
-HEADERS = ['gid', 'visible', 'cx', 'cy', 'x1', 'y1', 'x2', 'y2']
+HEADERS = [
+    'gid',
+    'visible',
+    'cx',
+    'cy',
+    'x1',
+    'y1',
+    'x2',
+    'y2',
+    'floor_x',
+    'floor_y',
+    'floor_valid',
+]
 
 
 def _table():
@@ -36,8 +48,22 @@ def _row_values(entry):
     gid = entry.get('gid')
     center = entry.get('center') or [0, 0]
     bbox = entry.get('bbox') or [0, 0, 0, 0]
+    floor = entry.get('floor') or [0, 0]
     visible = 1 if entry.get('visible') else 0
-    return [gid, visible, center[0], center[1], bbox[0], bbox[1], bbox[2], bbox[3]]
+    floor_valid = 1 if entry.get('floor_valid') else 0
+    return [
+        gid,
+        visible,
+        center[0],
+        center[1],
+        bbox[0],
+        bbox[1],
+        bbox[2],
+        bbox[3],
+        floor[0],
+        floor[1],
+        floor_valid,
+    ]
 
 
 def _upsert(entry):
