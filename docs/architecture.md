@@ -27,12 +27,14 @@ consumers use GIDs exclusively.
 
 | Method | Path | Description |
 |---|---|---|
-| GET | `/api/audience` | Active audience: `[{gid, visible, center, bbox, floor, floor_valid}]` |
+| GET | `/api/audience` | Active audience with GID, bbox, floor, and zone |
 | GET | `/api/audience/{gid}` | One member: `{gid, visible, duration_seen_seconds, ...}` |
 | GET | `/api/stats` | `{active_people, total_people_seen}` |
+| GET | `/api/zones` | Configured floor-space zones |
+| GET | `/api/zones/counts` | Live visible-person counts by zone |
 | GET | `/api/snapshot` | `{timestamp, active_people, people:[...]}` |
 | GET | `/metrics` | `{fps, latency_ms, gpu_utilization, active_people, active_tracks, reid_inference_time_ms, id_switches}` |
-| WS | `/ws` | Primes with a snapshot, then streams `{gid, visible, center, bbox, floor, floor_valid}` on every change |
+| WS | `/ws` | Primes with a snapshot, then streams changed audience entries |
 | GET | `/video` | MJPEG overlay stream |
 | GET | `/health` | Liveness |
 
@@ -50,6 +52,7 @@ src/audience_tracker/
   reid.py          OSNetExtractor | MockReID | NullReID
   overlay.py       OverlayRenderer (#GID labels; debug conf)
   projection.py    Fisheye-aware image-to-floor projection
+  zones.py         Floor-space zone definitions, matching, and counts
   metrics.py       MetricsCollector (fps/latency/gpu/reid time)
   framelog.py      Replayable JSONL frame logger
   statestore.py    Shared state + WebSocket fan-out (Redis = future)

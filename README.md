@@ -84,15 +84,21 @@ Two deployment paths, both consuming frames through the same transport-agnostic
 ## API at a glance
 
 REST + WebSocket, **GIDs only** — tracker IDs never cross the boundary. Endpoints:
-`/api/audience`, `/api/stats`, `/api/snapshot`, `/metrics`, `/ws`, `/video`,
-`/health`. Full table and payloads in [docs/architecture.md](docs/architecture.md#api).
+`/api/audience`, `/api/stats`, `/api/zones`, `/api/zones/counts`,
+`/api/snapshot`, `/metrics`, `/ws`, `/video`, `/health`. Full table and
+payloads in [docs/architecture.md](docs/architecture.md#api).
 
 ## Docs
 
-* [docs/touchdesigner.md](docs/touchdesigner.md) — local Windows + TouchDesigner runbook, presets, launcher, troubleshooting
-* [docs/floor_projection.md](docs/floor_projection.md) — fisheye/floor calibration and top-down `floor` coordinates
-* [docs/modal.md](docs/modal.md) — cloud path: Capture Agent + `/ingest` + Modal deploy
-* [docs/architecture.md](docs/architecture.md) — identity model, API reference, project layout, performance, tests
+* [docs/touchdesigner.md](docs/touchdesigner.md) — local Windows +
+  TouchDesigner runbook, presets, launcher, troubleshooting
+* [docs/floor_projection.md](docs/floor_projection.md) — fisheye/floor
+  calibration and top-down `floor` coordinates
+* [docs/zones.md](docs/zones.md) — floor-space zones and live zone counts
+* [docs/modal.md](docs/modal.md) — cloud path: Capture Agent + `/ingest` +
+  Modal deploy
+* [docs/architecture.md](docs/architecture.md) — identity model, API reference,
+  project layout, performance, tests
 
 ## Tests
 

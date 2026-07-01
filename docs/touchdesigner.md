@@ -50,17 +50,19 @@ In TouchDesigner:
 The `audience` table columns are:
 
 ```text
-gid visible cx cy x1 y1 x2 y2 floor_x floor_y floor_valid
+gid visible cx cy x1 y1 x2 y2 floor_x floor_y floor_valid zone
 ```
 
 `cx`, `cy`, and `bbox` are camera pixels. `floor_x` and `floor_y` are top-down
-floor coordinates when calibration is enabled.
+floor coordinates when calibration is enabled. `zone` is a configured floor
+region when zones are enabled.
 
 Sanity check:
 
 ```bat
 curl http://localhost:8000/api/stats
 curl http://localhost:8000/api/audience
+curl http://localhost:8000/api/zones/counts
 ```
 
 ## Launch From TouchDesigner
@@ -119,6 +121,22 @@ When calibration is disabled, the table still includes the floor columns, but
 `floor_valid` becomes `1`.
 
 Calibration runbook: [Floor Projection Calibration](floor_projection.md).
+
+## Floor Zones
+
+Zones are named regions in the calibrated floor plane. They are configured in
+`config.json`, appear per person as `zone`, and are counted at:
+
+```bat
+curl http://localhost:8000/api/zones/counts
+```
+
+In TouchDesigner, use:
+
+* `td_receive_state.py` for the per-person `zone` column.
+* `td_fetch_zone_counts.py` to fill a Table DAT named `zone_counts`.
+
+Zone runbook: [Floor Zones](zones.md).
 
 ## Useful Options
 
