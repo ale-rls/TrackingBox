@@ -45,6 +45,12 @@ class ReIDConfig:
     update_every: int = 5
     # Cosine-similarity threshold for reusing an existing GID (Identity Rule 2).
     similarity_threshold: float = 0.60
+    # Rebind veto: a track id re-emitted after a short miss resumes its GID
+    # unless the fresh embedding's similarity to the identity's average falls
+    # BELOW this (clearly a different person — the tracker re-associated onto
+    # someone else). Kept well under similarity_threshold so noisy
+    # re-appearances still favour tracker continuity.
+    rebind_veto_threshold: float = 0.35
     # EMA weight for the running average appearance embedding.
     embedding_alpha: float = 0.10
 

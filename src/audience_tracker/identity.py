@@ -67,7 +67,23 @@ class IdentityManager:
                 gid = self._track_to_gid.get(t.track_id)
                 ident = self._identities.get(gid) if gid is not None else None
                 if ident is not None and ident.active_track_id in (None, t.track_id):
-                    self._touch(ident, t, embeddings.get(t.track_id), now)
+                    emb = embeddings.get(t.track_id)
+                    if (
+                        not ident.visible
+                        and emb
+                        and ident.embedding_avg is not None
+                        and self._reid.enabled
+                        and cosine_similarity(emb, ident.embedding_avg)
+                        < self._reid.rebind_veto_threshold
+                    ):
+                        # The tracker re-emitted this id after a miss but the
+                        # appearance clearly disagrees — it re-associated onto
+                        # a different person. Break the binding and let step 2
+                        # arbitrate by appearance (Rule 2/3) instead.
+                        self._track_to_gid.pop(t.track_id, None)
+                        unbound.append(t)
+                        continue
+                    self._touch(ident, t, emb, now)
                 else:
                     if gid is not None:
                         # Stale binding: the identity was forgotten, or already
@@ -134,6 +150,19 @@ class IdentityManager:
         """Track IDs currently bound to an identity (used for ReID scheduling)."""
         with self._lock:
             return set(self._track_to_gid)
+
+    def returning_track_ids(self) -> set[int]:
+        """Track IDs bound to a currently-invisible identity.
+
+        These are about to resume a GID if the tracker re-emits them; the
+        pipeline embeds them immediately so the rebind is appearance-checked
+        (see the rebind veto in :meth:`update`)."""
+        with self._lock:
+            return {
+                tid
+                for tid, gid in self._track_to_gid.items()
+                if gid in self._identities and not self._identities[gid].visible
+            }
 
     def counters(self) -> dict:
         with self._lock:

@@ -157,8 +157,12 @@ class TrackingPipeline:
         if not self._reid_enabled or not tracks:
             return {}
         known = self.identity.known_track_ids()
+        # Tracks resuming a lost identity are embedded immediately (not on the
+        # every-N schedule) so the identity manager can appearance-check the
+        # rebind instead of trusting the tracker blindly.
+        returning = self.identity.returning_track_ids()
         due = frame_index % max(1, self.cfg.reid.update_every) == 0
-        targets = [t for t in tracks if t.track_id not in known or due]
+        targets = [t for t in tracks if t.track_id not in known or t.track_id in returning or due]
         if not targets:
             return {}
         embeddings = self.reid.extract(frame, [t.bbox for t in targets])

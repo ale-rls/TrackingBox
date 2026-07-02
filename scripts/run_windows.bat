@@ -12,5 +12,6 @@ if not exist "%VENV%\audience-tracker.exe" (
   exit /b 1
 )
 
-REM Defaults: real backend, GPU, local camera 0, ReID off. Override via args.
-"%VENV%\audience-tracker.exe" serve --backend real --device cuda --source 0 --no-reid --port 8000 %*
+REM Defaults: real backend, GPU, local camera 0, ReID on. Override via args
+REM (pass --no-reid if torchreid is not installed on this machine).
+"%VENV%\audience-tracker.exe" serve --backend real --device cuda --source 0 --port 8000 %*

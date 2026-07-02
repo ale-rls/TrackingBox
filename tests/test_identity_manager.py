@@ -172,6 +172,36 @@ def test_returning_old_track_id_does_not_steal_recovered_identity():
     assert mgr.stats()["total_people_seen"] == 2
 
 
+def test_rebind_vetoed_when_appearance_clearly_differs():
+    """Tracker re-associates a lost id onto a different-looking person: the
+    rebind veto must break the binding instead of transferring the GID."""
+    mgr = make_manager()
+    mgr.update([track(1)], {1: EMB_A}, now=0.0)
+    mgr.update([], {}, now=0.5)                       # track 1 missed
+    states = mgr.update([track(1)], {1: EMB_B}, now=1.0)  # same id, person B
+    assert states[0].gid == 2
+    assert mgr.stats()["total_people_seen"] == 2
+
+
+def test_rebind_kept_for_noisy_but_similar_appearance():
+    mgr = make_manager()
+    mgr.update([track(1)], {1: EMB_A}, now=0.0)
+    mgr.update([], {}, now=0.5)
+    states = mgr.update([track(1)], {1: EMB_A_NOISY}, now=1.0)
+    assert states[0].gid == 1                          # continuity wins
+
+
+def test_vetoed_track_recovers_the_right_lost_identity():
+    """B steals A's tracker id during occlusion: veto the rebind to A's GID,
+    then ReID recovery hands B their own GID back."""
+    mgr = make_manager()
+    mgr.update([track(1, x=0), track(2, x=100)], {1: EMB_A, 2: EMB_B}, now=0.0)
+    mgr.update([], {}, now=0.5)                        # both lost
+    states = mgr.update([track(1)], {1: EMB_B}, now=1.0)  # B under A's old id
+    assert states[0].gid == 2
+    assert mgr.stats()["total_people_seen"] == 2
+
+
 def test_gc_drops_kept_track_bindings():
     mgr = make_manager_no_reid(forget_timeout_seconds=0.0)
     mgr.update([track(1)], {}, now=0.0)
