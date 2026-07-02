@@ -4,9 +4,11 @@ The local deployment runs the whole tracking pipeline on the Windows theater PC.
 The service opens the USB camera directly and produces an annotated MJPEG stream;
 TouchDesigner consumes the video and audience state over localhost.
 
-ReID is optional and off by default here (`--no-reid`) so the Windows setup does
-not depend on `torchreid`. With it off, GIDs persist while a person is
-continuously tracked; only recovery after a full occlusion is reduced.
+ReID (OSNet) is part of the venue setup: it recovers a person's GID after a
+full occlusion and appearance-checks the tracker when a track id reappears
+after a miss. If `torchreid` won't build on a given machine, `--no-reid` still
+runs detection + tracking with GIDs persisting across short misses — only
+occlusion recovery is lost.
 
 > Looking for the cloud GPU path instead? See [Run on Modal](modal.md).
 
@@ -35,8 +37,8 @@ Sanity-check anytime:
 
 ```bat
 scripts\run_windows.bat
-:: = .venv\Scripts\audience-tracker serve --backend real --device cuda --source 0 --no-reid --port 8000
-:: pass-through args work, e.g.: scripts\run_windows.bat --source 1 --port 9000
+:: = .venv\Scripts\audience-tracker serve --backend real --device cuda --source 0 --port 8000
+:: pass-through args work, e.g.: scripts\run_windows.bat --source 1 --no-reid --port 9000
 ```
 
 In TouchDesigner:
@@ -147,14 +149,16 @@ Zone runbook: [Floor Zones](zones.md).
 
 | Flag / env | Effect |
 |---|---|
-| `--no-reid` | Detection + tracking only. |
+| `--no-reid` | Detection + tracking only (fallback when torchreid won't install). |
 | `--device cuda` | Force GPU. |
 | `--source 0` / `--source rtsp://...` | Camera index or stream. |
 | `AT_DETECTOR_IMAGE_SIZE=960` | Lower means more FPS; higher helps small/distant people. |
 | `AT_DETECTOR_CONFIDENCE_THRESHOLD=0.35` | Detection confidence. |
+| `AT_REID_SIMILARITY_THRESHOLD=0.6` | Min similarity to recover a GID after occlusion. |
+| `AT_REID_REBIND_VETO_THRESHOLD=0.35` | Below this, a returning track id is treated as a different person. |
 | `AT_OVERLAY_DEBUG=true` | Draw confidence under each GID. |
 
-Adding ReID later:
+Installing ReID (if not done by the installer):
 
 ```bat
 pip install -e ".[reid]"
@@ -172,6 +176,8 @@ Run `audience-tracker doctor` first; it pinpoints most setup issues.
 | Low FPS, GPU idle in Task Manager | Running on CPU torch | Confirm with `doctor`; expect CUDA to be available. |
 | Installer: "No suitable Python found" | Python missing or 3.13+ only | Install Python 3.11 and tick "Add to PATH". |
 | `Could not open video source: '0'` | Wrong camera index or camera in use | Try `--source 1`, `2`, etc.; close other apps using the camera. |
+| Overlay freezes for a moment, then resumes | Camera hiccup | Nothing to do — the service retries and reopens the device automatically (watch the logs). |
+| API responds but tracking is frozen | Pipeline thread died after a persistent fault | `curl http://localhost:8000/health` — `pipeline_running: false` confirms it; check the service logs and restart. |
 | Video Stream In TOP stays black | Service down or wrong URL | Check `http://localhost:8000/health`; URL must be `http://localhost:8000/video`. |
 | WebSocket DAT will not connect | Wrong address/port or firewall | Use `localhost` / `8000` / `/ws`; allow Python through Windows Firewall. |
 | Audience table stops refreshing | WebSocket DAT dropped and did not reconnect | Enable auto-reconnect on the WebSocket DAT, then pulse Active off/on. The server resends a full snapshot after reconnect. |
