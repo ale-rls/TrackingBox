@@ -28,6 +28,13 @@ def _crop(frame: np.ndarray, bbox: BBox) -> np.ndarray:
     return frame[y1:y2, x1:x2]
 
 
+def _rgb(crop: np.ndarray) -> np.ndarray:
+    """BGR(A) crop -> contiguous RGB (torchreid treats ndarray input as RGB)."""
+    if crop.ndim == 3 and crop.shape[2] >= 3:
+        crop = crop[:, :, 2::-1]  # reverse the first three channels, drop alpha
+    return np.ascontiguousarray(crop)
+
+
 class OSNetExtractor:
     def __init__(self, cfg: ReIDConfig, device: str = "auto") -> None:
         # ImportError (not just ModuleNotFoundError) also covers a torchreid
@@ -37,20 +44,19 @@ class OSNetExtractor:
         except ImportError:
             from torchreid.reid.utils import FeatureExtractor  # type: ignore[import-not-found]
 
-        if device == "auto":
+        if device in ("cpu", "cuda") or str(device).startswith("cuda:"):
+            dev = device
+        else:  # "auto" (or anything unrecognized): use CUDA when available
             import torch
 
             dev = "cuda" if torch.cuda.is_available() else "cpu"
-        else:
-            dev = device
         self.extractor = FeatureExtractor(model_name=cfg.model_name, device=dev)
         self.last_inference_ms = 0.0
 
     def extract(self, frame: Any, bboxes: Sequence[BBox]) -> list[Embedding]:
         if not bboxes:
             return []
-        # torchreid treats ndarray input as RGB; our frames are OpenCV BGR.
-        crops = [np.ascontiguousarray(_crop(frame, b)[:, :, ::-1]) for b in bboxes]
+        crops = [_rgb(_crop(frame, b)) for b in bboxes]
         t0 = time.perf_counter()
         feats = self.extractor(crops)  # torch.Tensor (N, 512)
         self.last_inference_ms = (time.perf_counter() - t0) * 1000.0

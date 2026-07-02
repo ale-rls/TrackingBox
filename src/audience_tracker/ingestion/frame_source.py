@@ -67,30 +67,38 @@ class OpenCVFrameSource(_FiniteFrameSource):
     # Pause after a failed live read so the pipeline doesn't spin at 100% CPU.
     _RETRY_DELAY_S = 0.1
 
+    # URL schemes that always mean a live stream. http(s) is ambiguous (it can
+    # host a finite clip) and defaults to finite; pass live=True for an MJPEG
+    # camera served over http.
+    _LIVE_SCHEMES = ("rtsp://", "rtsps://", "rtmp://", "udp://", "tcp://", "srt://")
+
     def __init__(
         self,
         source: str | int,
         max_frames: Optional[int] = None,
         camera: Optional[CameraConfig] = None,
+        live: Optional[bool] = None,
     ) -> None:
-        import cv2  # local import: only the venue/GPU box has OpenCV
-
-        self._cv2 = cv2
         self._source = source
         self._camera = camera
         self._max_frames = max_frames
         self._exhausted = False
         self._next_id = 0
-        self._live = str(source).isdigit() or "://" in str(source)
+        self._is_device = str(source).isdigit()
+        if live is None:
+            s = str(source).lower()
+            live = self._is_device or s.startswith(self._LIVE_SCHEMES) or s.startswith("/dev/")
+        self._live = live
         self._failures = 0
         self._cap = self._open()
         if not self._cap.isOpened():
             raise RuntimeError(f"Could not open video source: {source!r}")
 
     def _open(self):
-        cv2 = self._cv2
-        cap = cv2.VideoCapture(int(self._source) if str(self._source).isdigit() else self._source)
-        if self._camera is not None and str(self._source).isdigit():
+        import cv2  # local import: only the venue/GPU box has OpenCV
+
+        cap = cv2.VideoCapture(int(self._source) if self._is_device else self._source)
+        if self._camera is not None and self._is_device:
             cap.set(cv2.CAP_PROP_FRAME_WIDTH, self._camera.width)
             cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self._camera.height)
             cap.set(cv2.CAP_PROP_FPS, self._camera.fps)
@@ -118,7 +126,12 @@ class OpenCVFrameSource(_FiniteFrameSource):
                     self._cap.release()
                 except Exception:
                     pass
-                self._cap = self._open()
+                try:
+                    self._cap = self._open()
+                except Exception as exc:
+                    # Keep retrying on the released capture; a reopen failure
+                    # must not escape into (and kill) the pipeline loop.
+                    log.warning("Video source %r: reopen failed: %s", self._source, exc)
             time.sleep(self._RETRY_DELAY_S)
             return None
         if self._failures:

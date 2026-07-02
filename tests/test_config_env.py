@@ -19,6 +19,11 @@ def test_none_default_float_env_becomes_float():
     assert isinstance(cfg.pipeline.max_fps, float)
 
 
+def test_empty_env_value_means_unset():
+    cfg = Config().apply_env({"AT_PIPELINE_MAX_FPS": ""})
+    assert cfg.pipeline.max_fps is None
+
+
 def test_none_default_str_env_stays_str():
     cfg = Config().apply_env({"AT_PIPELINE_OUTPUT_PATH": "out.mp4"})
     assert cfg.pipeline.output_path == "out.mp4"

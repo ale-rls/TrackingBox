@@ -85,3 +85,20 @@ def test_file_source_read_failure_means_eof(monkeypatch):
     assert src.next_frame() is not None
     assert src.next_frame() is None
     assert src.exhausted is True
+
+
+def test_http_url_defaults_to_finite(monkeypatch):
+    # http(s) can host a finite clip: EOF must terminate, not replay forever.
+    src = make_source(monkeypatch, [FakeCapture([IMG, None])], "http://host/clip.mp4")
+    assert src.next_frame() is not None
+    assert src.next_frame() is None
+    assert src.exhausted is True
+
+
+def test_explicit_live_overrides_heuristic(monkeypatch):
+    monkeypatch.setitem(sys.modules, "cv2", fake_cv2([FakeCapture([None, IMG])]))
+    monkeypatch.setattr(OpenCVFrameSource, "_RETRY_DELAY_S", 0.0)
+    src = OpenCVFrameSource("http://host/mjpeg", live=True)  # e.g. MJPEG camera
+    assert src.next_frame() is None
+    assert src.exhausted is False
+    assert src.next_frame() is not None
