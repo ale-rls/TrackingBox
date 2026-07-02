@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import json
 import os
+import typing
 from dataclasses import asdict, dataclass, field, fields, is_dataclass
 from typing import Any
 
@@ -222,10 +223,15 @@ class Config:
         environ = environ if environ is not None else dict(os.environ)
         for section_name in _section_names(self):
             section = getattr(self, section_name)
+            hints = typing.get_type_hints(type(section))
             for f in fields(section):
                 env_key = f"AT_{section_name.upper()}_{f.name.upper()}"
                 if env_key in environ:
-                    setattr(section, f.name, _coerce(getattr(section, f.name), environ[env_key]))
+                    setattr(
+                        section,
+                        f.name,
+                        _coerce(getattr(section, f.name), environ[env_key], hints.get(f.name)),
+                    )
         return self
 
     def to_dict(self) -> dict[str, Any]:
@@ -252,11 +258,23 @@ def _merge(cfg: Config, data: dict[str, Any]) -> None:
                 setattr(section, key, val)
 
 
-def _coerce(current: Any, raw: str) -> Any:
-    """Coerce an env string to the type of the current value."""
+def _coerce(current: Any, raw: str, ftype: Any = None) -> Any:
+    """Coerce an env string to the type of the current value.
+
+    When the current value is None (e.g. ``max_fps: float | None = None``) the
+    resolved field type decides, so numeric overrides don't arrive as strings;
+    an empty value means "leave unset".
+    """
     if isinstance(current, bool):
         return raw.strip().lower() in {"1", "true", "yes", "on"}
     if current is None:
+        if not raw.strip():
+            return None  # empty env var behaves like an unset one
+        args = typing.get_args(ftype) or (ftype,)
+        if float in args:
+            return float(raw)
+        if int in args:
+            return int(raw)
         return raw
     if isinstance(current, int) and not isinstance(current, bool):
         return int(raw)

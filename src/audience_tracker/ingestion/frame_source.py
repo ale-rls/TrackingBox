@@ -12,6 +12,7 @@ pipeline can tell "nothing yet" (live, keep waiting) from "finished" (file end).
 
 from __future__ import annotations
 
+import logging
 import threading
 import time
 from collections import deque
@@ -21,6 +22,8 @@ import numpy as np
 
 from ..config import CameraConfig
 from ..models import Frame
+
+log = logging.getLogger("audience_tracker.frame_source")
 
 
 class _FiniteFrameSource:
@@ -50,27 +53,56 @@ class _FiniteFrameSource:
 
 
 class OpenCVFrameSource(_FiniteFrameSource):
-    """Reads frames from any OpenCV-openable source: device index, file, RTSP/HTTP."""
+    """Reads frames from any OpenCV-openable source: device index, file, RTSP/HTTP.
+
+    Live sources (a camera device index or a network URL) treat a failed read
+    as *transient* — USB cameras hiccup and streams drop mid-show — so the
+    source retries and, after enough consecutive failures, reopens the capture
+    (which also recovers an unplugged-and-replugged camera). Only finite
+    sources (files) report ``exhausted`` on a failed read.
+    """
+
+    # Consecutive failed live reads before the capture is reopened (~2.5 s).
+    _REOPEN_AFTER = 25
+    # Pause after a failed live read so the pipeline doesn't spin at 100% CPU.
+    _RETRY_DELAY_S = 0.1
+
+    # URL schemes that always mean a live stream. http(s) is ambiguous (it can
+    # host a finite clip) and defaults to finite; pass live=True for an MJPEG
+    # camera served over http.
+    _LIVE_SCHEMES = ("rtsp://", "rtsps://", "rtmp://", "udp://", "tcp://", "srt://")
 
     def __init__(
         self,
         source: str | int,
         max_frames: Optional[int] = None,
         camera: Optional[CameraConfig] = None,
+        live: Optional[bool] = None,
     ) -> None:
-        import cv2  # local import: only the venue/GPU box has OpenCV
-
         self._source = source
+        self._camera = camera
         self._max_frames = max_frames
         self._exhausted = False
         self._next_id = 0
-        self._cap = cv2.VideoCapture(int(source) if str(source).isdigit() else source)
-        if camera is not None and str(source).isdigit():
-            self._cap.set(cv2.CAP_PROP_FRAME_WIDTH, camera.width)
-            self._cap.set(cv2.CAP_PROP_FRAME_HEIGHT, camera.height)
-            self._cap.set(cv2.CAP_PROP_FPS, camera.fps)
+        self._is_device = str(source).isdigit()
+        if live is None:
+            s = str(source).lower()
+            live = self._is_device or s.startswith(self._LIVE_SCHEMES) or s.startswith("/dev/")
+        self._live = live
+        self._failures = 0
+        self._cap = self._open()
         if not self._cap.isOpened():
             raise RuntimeError(f"Could not open video source: {source!r}")
+
+    def _open(self):
+        import cv2  # local import: only the venue/GPU box has OpenCV
+
+        cap = cv2.VideoCapture(int(self._source) if self._is_device else self._source)
+        if self._camera is not None and self._is_device:
+            cap.set(cv2.CAP_PROP_FRAME_WIDTH, self._camera.width)
+            cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self._camera.height)
+            cap.set(cv2.CAP_PROP_FPS, self._camera.fps)
+        return cap
 
     def next_frame(self, timeout: Optional[float] = None) -> Optional[Frame]:
         if self._exhausted:
@@ -80,8 +112,31 @@ class OpenCVFrameSource(_FiniteFrameSource):
             return None
         ok, image = self._cap.read()
         if not ok or image is None:
-            self._exhausted = True
+            if not self._live:
+                self._exhausted = True  # end of file
+                return None
+            self._failures += 1
+            if self._failures % self._REOPEN_AFTER == 0:
+                log.warning(
+                    "Video source %r: %d consecutive failed reads — reopening",
+                    self._source,
+                    self._failures,
+                )
+                try:
+                    self._cap.release()
+                except Exception:
+                    pass
+                try:
+                    self._cap = self._open()
+                except Exception as exc:
+                    # Keep retrying on the released capture; a reopen failure
+                    # must not escape into (and kill) the pipeline loop.
+                    log.warning("Video source %r: reopen failed: %s", self._source, exc)
+            time.sleep(self._RETRY_DELAY_S)
             return None
+        if self._failures:
+            log.info("Video source %r recovered after %d failed reads", self._source, self._failures)
+            self._failures = 0
         h, w = image.shape[:2]
         frame = Frame(image=image, timestamp=time.time(), frame_id=self._next_id, width=w, height=h)
         self._next_id += 1

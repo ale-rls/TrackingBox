@@ -60,6 +60,15 @@ class TrackingPipeline:
         self._thread: Optional[threading.Thread] = None
         self._reid_enabled = cfg.reid.enabled and not isinstance(reid, NullReID)
 
+    # Consecutive frame failures tolerated before the run loop gives up
+    # (~30 s at 30 fps): transient faults are contained, permanent ones surface.
+    _MAX_CONSECUTIVE_ERRORS = 300
+
+    @property
+    def running(self) -> bool:
+        """True while the background pipeline thread is alive."""
+        return self._thread is not None and self._thread.is_alive()
+
     # ------------------------------------------------------------------ #
     # Single frame
     # ------------------------------------------------------------------ #
@@ -167,6 +176,8 @@ class TrackingPipeline:
         while the Capture Agent is disconnected) the loop keeps waiting; it only
         ends when the source reports ``exhausted`` (file/simulator finished)."""
         processed = 0
+        errors = 0  # consecutive frame failures (escalation + pacing)
+        total_errors = 0  # lifetime frame failures (log throttling)
         timeout = self.cfg.ingest.frame_timeout_s
         min_dt = 1.0 / self.cfg.pipeline.max_fps if self.cfg.pipeline.max_fps else 0.0
         try:
@@ -179,9 +190,30 @@ class TrackingPipeline:
                     if getattr(source, "exhausted", False):
                         break
                     continue  # live source idle — keep tracking state, wait
-                annotated = self.process_frame(frame.image, frame.frame_id, frame.timestamp)
+                try:
+                    annotated = self.process_frame(frame.image, frame.frame_id, frame.timestamp)
+                except Exception:
+                    # One bad frame must not end the show: the thread stays up
+                    # and keeps consuming. But a fault on *every* frame is not
+                    # a bad frame — after enough consecutive failures re-raise
+                    # so the fault surfaces (non-zero CLI exit, dead thread in
+                    # /health) instead of an eternal silent skip-loop.
+                    errors += 1
+                    total_errors += 1
+                    if total_errors == 1 or total_errors % 100 == 0:
+                        log.exception(
+                            "Frame processing failed (%d consecutive, %d total)",
+                            errors, total_errors,
+                        )
+                    if errors >= self._MAX_CONSECUTIVE_ERRORS:
+                        log.critical("Frame processing failed %d times in a row — giving up", errors)
+                        raise
+                    if errors >= 5:
+                        time.sleep(0.1)  # persistent fault: stop spinning
+                    continue
+                errors = 0
                 if writer is not None:
-                    writer.write(annotated)
+                    writer.write(annotated)  # output faults must fail fast
                 processed += 1
                 if min_dt:
                     elapsed = time.perf_counter() - loop_t0

@@ -117,7 +117,9 @@ class CaptureAgent:
     # Capture (its own thread; blocking OpenCV reads)
     # ------------------------------------------------------------------ #
     def _open_camera(self) -> OpenCVFrameSource:
-        return OpenCVFrameSource(self._source, camera=self.cfg.camera)
+        # live=False: the agent owns recovery (reopen with configurable
+        # backoff below), so the source must not layer its own retry on top.
+        return OpenCVFrameSource(self._source, camera=self.cfg.camera, live=False)
 
     def _encode(self, image) -> Optional[bytes]:
         import cv2

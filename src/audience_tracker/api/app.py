@@ -91,7 +91,14 @@ def create_app(cfg: Config | None = None, store: InMemoryStateStore | None = Non
     # -------------------------------------------------------------- #
     @app.get("/health")
     async def health() -> dict:
-        return {"status": "ok", "pipeline": app.state.pipeline is not None}
+        pipeline = app.state.pipeline
+        return {
+            "status": "ok",
+            "pipeline": pipeline is not None,
+            # False after the run loop gives up on a persistent fault — the
+            # operator's signal that tracking died while the API stayed up.
+            "pipeline_running": bool(pipeline is not None and pipeline.running),
+        }
 
     @app.get("/api/audience")
     async def get_audience() -> list:
