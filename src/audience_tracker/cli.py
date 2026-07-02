@@ -124,7 +124,9 @@ def cmd_demo(args: argparse.Namespace) -> int:
     for i in range(args.frames):
         ok, frame = camera.read()
         if not ok:
-            break
+            if getattr(camera, "exhausted", True):
+                break
+            continue  # transient live-read failure — the source is retrying
         pipeline.process_frame(frame, i)
         if i % args.report_every == 0:
             print(f"frame {i:4d}  " + json.dumps(pipeline.metrics.snapshot()))
@@ -138,7 +140,12 @@ def cmd_demo(args: argparse.Namespace) -> int:
 def _open_writer(path: str, camera):
     import cv2
 
+    # A live source may hiccup on the very first read — retry briefly.
     ok, frame = camera.read()
+    for _ in range(50):
+        if ok or getattr(camera, "exhausted", True):
+            break
+        ok, frame = camera.read()
     if not ok:
         raise RuntimeError("Empty source")
     h, w = frame.shape[:2]

@@ -21,8 +21,10 @@ EMB_B = [0.0, 1.0, 0.0, 0.0]
 EMB_A_NOISY = [0.95, 0.10, 0.05, 0.0]  # still very similar to A
 
 
-def make_manager(**identity_overrides) -> IdentityManager:
-    return IdentityManager(IdentityConfig(**identity_overrides), ReIDConfig())
+def make_manager(reid_enabled: bool = True, **identity_overrides) -> IdentityManager:
+    return IdentityManager(
+        IdentityConfig(**identity_overrides), ReIDConfig(enabled=reid_enabled)
+    )
 
 
 def track(track_id: int, x: float = 0.0) -> Track:
@@ -127,15 +129,11 @@ def test_track_ids_never_in_public_state():
 # --------------------------------------------------------------------- #
 # Tracker continuity: bindings survive short detection misses.
 # --------------------------------------------------------------------- #
-def make_manager_no_reid(**identity_overrides) -> IdentityManager:
-    return IdentityManager(IdentityConfig(**identity_overrides), ReIDConfig(enabled=False))
-
-
 def test_same_track_id_survives_short_miss_without_reid():
     """A missed detection is not a departure: the tracker re-emits the same
     track id after a short miss, which must resume the same GID — even with
     ReID disabled (the --no-reid deployment)."""
-    mgr = make_manager_no_reid()
+    mgr = make_manager(reid_enabled=False)
     mgr.update([track(7)], {}, now=0.0)
     mgr.update([], {}, now=0.05)                    # one missed frame
     states = mgr.update([track(7)], {}, now=0.1)    # same tracker id returns
@@ -144,7 +142,7 @@ def test_same_track_id_survives_short_miss_without_reid():
 
 
 def test_miss_gap_not_counted_in_duration():
-    mgr = make_manager_no_reid()
+    mgr = make_manager(reid_enabled=False)
     mgr.update([track(1)], {}, now=0.0)
     mgr.update([], {}, now=1.0)          # invisible 0.0 -> 2.0: must not count
     mgr.update([track(1)], {}, now=2.0)
@@ -203,7 +201,7 @@ def test_vetoed_track_recovers_the_right_lost_identity():
 
 
 def test_gc_drops_kept_track_bindings():
-    mgr = make_manager_no_reid(forget_timeout_seconds=0.0)
+    mgr = make_manager(reid_enabled=False, forget_timeout_seconds=0.0)
     mgr.update([track(1)], {}, now=0.0)
     mgr.update([], {}, now=1.0)   # lost; GC forgets the identity and its binding
     assert mgr.known_track_ids() == set()
