@@ -23,15 +23,20 @@ NUM_PEOPLE = 8
 FRAMES = 150
 
 
-def _run():
+def _make(max_frames=FRAMES):
+    """Mock-backend pipeline + finite simulator source (headless flags set)."""
     cfg = Config()
     cfg.pipeline.backend = "mock"
     cfg.pipeline.render_overlay = False
     cfg.pipeline.stream_overlay = False
     cfg.logging.enabled = False
     built = build_pipeline(cfg, num_people=NUM_PEOPLE)
-    pipeline = built["pipeline"]
-    camera = open_source(cfg, simulator=built["simulator"], max_frames=FRAMES)
+    source = open_source(cfg, simulator=built["simulator"], max_frames=max_frames)
+    return built["pipeline"], source
+
+
+def _run():
+    pipeline, camera = _make()
     processed = 0
     for i in range(FRAMES):
         ok, frame = camera.read()
@@ -68,14 +73,7 @@ def test_metrics_populated():
 def test_run_survives_frame_processing_errors():
     """A failing frame must not kill the run loop mid-show: the loop logs,
     skips the frame, and keeps consuming until the source actually ends."""
-    cfg = Config()
-    cfg.pipeline.backend = "mock"
-    cfg.pipeline.render_overlay = False
-    cfg.pipeline.stream_overlay = False
-    cfg.logging.enabled = False
-    built = build_pipeline(cfg, num_people=4)
-    pipeline = built["pipeline"]
-    source = open_source(cfg, simulator=built["simulator"], max_frames=20)
+    pipeline, source = _make(max_frames=20)
 
     real_detect = pipeline.detector.detect
     calls = {"n": 0}

@@ -56,7 +56,9 @@ def run_scenario(cfg: Config, name: str, people: int, frames: int) -> dict:
     for i in range(frames):
         ok, frame = camera.read()
         if not ok:
-            break
+            if getattr(camera, "exhausted", True):
+                break
+            continue  # transient live-read failure — the source is retrying
         pipeline.process_frame(frame, i)
         snap = pipeline.metrics.snapshot()
         latencies.append(snap["latency_ms"])

@@ -15,3 +15,10 @@ if not exist "%VENV%\audience-tracker.exe" (
 REM Defaults: real backend, GPU, local camera 0, ReID on. Override via args
 REM (pass --no-reid if torchreid is not installed on this machine).
 "%VENV%\audience-tracker.exe" serve --backend real --device cuda --source 0 --port 8000 %*
+if errorlevel 1 (
+  echo.
+  echo The tracker exited with an error. Run "%VENV%\audience-tracker.exe" doctor
+  echo to check this machine. If ReID/torchreid is not installed here, retry with:
+  echo    run_windows.bat --no-reid
+  pause
+)

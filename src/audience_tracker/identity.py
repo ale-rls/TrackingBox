@@ -166,13 +166,12 @@ class IdentityManager:
 
     def counters(self) -> dict:
         with self._lock:
+            # visible <=> bound to a live track (set/cleared together), so the
+            # two counts coincide; both keys stay for the /metrics contract.
+            active = sum(1 for i in self._identities.values() if i.visible)
             return {
-                "active_people": sum(1 for i in self._identities.values() if i.visible),
-                # Bindings persist across short misses, so count only tracks
-                # currently attached to a visible identity.
-                "active_tracks": sum(
-                    1 for i in self._identities.values() if i.active_track_id is not None
-                ),
+                "active_people": active,
+                "active_tracks": active,
                 "total_people_seen": self._total_created,
                 "id_switches": self._id_switches,
                 "recoveries": sum(i.recoveries for i in self._identities.values()),
